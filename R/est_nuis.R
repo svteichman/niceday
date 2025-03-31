@@ -125,31 +125,38 @@ est_nuis <- function(W,
                            })
       } else {
         warning(paste0("Cross-fitting for E[W_", j,"|W_", j,">0,A=1,X] is impossible.\n",
-                       "Reverted to overall mean(W[A==1 & W[, j] > 0, j])."))
+                       "  Reverted to overall mean(W[A==1 & W[, j] > 0, j]).\n"))
         est_m1 <- rep(mean(W[A == 1 & W[, j] > 0, j]), n)
       }
 
       # for each taxon j, estimate P(W_j>0|A=1,X)
-      est_q1 <- tryCatch(expr =
-                           c(SuperLearner(Y = ifelse(W[samp_subset_comp_q1, j] > 0, 1, 0),
-                                          X = setNames(object = data.frame(X[samp_subset_comp_q1, , drop = FALSE]),
-                                                       nm = paste0("X", 1:ncol(X))),
-                                          newX = setNames(object = data.frame(X),
-                                                          nm = paste0("X", 1:ncol(X))),
-                                          method = "method.NNLS",
-                                          family = binomial(link = "logit"),
-                                          SL.library = sl.lib.q,
-                                          cvControl = list(V = min(num_crossval_folds,
-                                                                   sum(samp_subset_comp_q0),
-                                                                   sum(samp_subset_comp_q1))))$SL.predict),
-                         error = function(e){
-                           #cat("An error occurred:\n", e$message, "\n")
-                           rep(mean(W[samp_subset_comp_q1, j] > 0), n)
-                         },
-                         warning = function(w){
-                           #cat("A warning occurred:\n", w$message, "\n")
-                           rep(mean(W[samp_subset_comp_q1, j] > 0), n)
-                         })
+      if (sum(samp_subset_comp_q1) > 0) {
+        est_q1 <- tryCatch(expr =
+                             c(SuperLearner(Y = ifelse(W[samp_subset_comp_q1, j] > 0, 1, 0),
+                                            X = setNames(object = data.frame(X[samp_subset_comp_q1, , drop = FALSE]),
+                                                         nm = paste0("X", 1:ncol(X))),
+                                            newX = setNames(object = data.frame(X),
+                                                            nm = paste0("X", 1:ncol(X))),
+                                            method = "method.NNLS",
+                                            family = binomial(link = "logit"),
+                                            SL.library = sl.lib.q,
+                                            cvControl = list(V = min(num_crossval_folds,
+                                                                     sum(samp_subset_comp_q0),
+                                                                     sum(samp_subset_comp_q1))))$SL.predict),
+                           error = function(e){
+                             #cat("An error occurred:\n", e$message, "\n")
+                             rep(mean(W[samp_subset_comp_q1, j] > 0), n)
+                           },
+                           warning = function(w){
+                             #cat("A warning occurred:\n", w$message, "\n")
+                             rep(mean(W[samp_subset_comp_q1, j] > 0), n)
+                           })
+      } else {
+        warning(paste0("Cross-fitting for P(W_", j, ">0|A=1,X) is impossible.\n",
+                       "  Reverted to overall mean(W[A == 1, j] > 0).\n"))
+        est_q1 <- rep(mean(W[A == 1, j] > 0), n)
+      }
+
 
       # for each taxon j, estimate E[W_j|W_j>0,A=0,X]
       if (sum(samp_subset_comp_m0) > 0) {
@@ -175,35 +182,41 @@ est_nuis <- function(W,
         })
       } else {
         warning(paste0("Cross-fitting for E[W_", j,"|W_", j,">0,A=0,X] is impossible.\n",
-                       "Reverted to overall mean(W[A==0 & W[, j] > 0, j])."))
-        est_m1 <- rep(mean(W[A == 0 & W[, j] > 0, j]), n)
+                       "  Reverted to overall mean(W[A==0 & W[, j] > 0, j]).\n"))
+        est_m0 <- rep(mean(W[A == 0 & W[, j] > 0, j]), n)
       }
 
       # for each taxon j, estimate P(W_j>0|A=0,X)
-      est_q0 <- tryCatch(expr =
-         c(SuperLearner(Y = ifelse(W[samp_subset_comp_q0, j] > 0, 1, 0),
-                        X = setNames(object = data.frame(X[samp_subset_comp_q0, , drop = FALSE]),
-                                     nm = paste0("X", 1:ncol(X))),
-                        newX = setNames(object = data.frame(X),
-                                        nm = paste0("X", 1:ncol(X))),
-                        method = "method.NNLS",
-                        family = binomial(link = "logit"),
-                        SL.library = sl.lib.q,
-                        cvControl = list(V = min(num_crossval_folds,
-                                                 sum(samp_subset_comp_q0),
-                                                 sum(samp_subset_comp_q1))))$SL.predict),
-       error = function(e){
-         #cat("An error occurred:\n", e$message, "\n")
-         rep(mean(W[samp_subset_comp_q0, j] > 0), n)
-       },
-       warning = function(w){
-         #cat("A warning occurred:\n", w$message, "\n")
-         rep(mean(W[samp_subset_comp_q0, j] > 0), n)
-      })
+      if (sum(samp_subset_comp_q0) > 0) {
+        est_q0 <- tryCatch(expr =
+           c(SuperLearner(Y = ifelse(W[samp_subset_comp_q0, j] > 0, 1, 0),
+                          X = setNames(object = data.frame(X[samp_subset_comp_q0, , drop = FALSE]),
+                                       nm = paste0("X", 1:ncol(X))),
+                          newX = setNames(object = data.frame(X),
+                                          nm = paste0("X", 1:ncol(X))),
+                          method = "method.NNLS",
+                          family = binomial(link = "logit"),
+                          SL.library = sl.lib.q,
+                          cvControl = list(V = min(num_crossval_folds,
+                                                   sum(samp_subset_comp_q0),
+                                                   sum(samp_subset_comp_q1))))$SL.predict),
+         error = function(e){
+           #cat("An error occurred:\n", e$message, "\n")
+           rep(mean(W[samp_subset_comp_q0, j] > 0), n)
+         },
+         warning = function(w){
+           #cat("A warning occurred:\n", w$message, "\n")
+           rep(mean(W[samp_subset_comp_q0, j] > 0), n)
+        })
+      } else {
+        warning(paste0("Cross-fitting for P(W_", j, ">0|A=0,X) is impossible.\n",
+                       "  Reverted to overall mean(W[A == 0, j] > 0).\n"))
+        est_q0 <- rep(mean(W[A == 0, j] > 0), n)
+      }
 
       # perform truncation to avoid numerical instability
-      est_m1 <- pmin(pmax(est_m1, 0), max(W[samp_subset_comp_m1, j]))
-      est_m0 <- pmin(pmax(est_m0, 0), max(W[samp_subset_comp_m0, j]))
+      est_m1 <- pmin(pmax(est_m1, 0), max(W[A == 1 & W[, j] > 0, j]))
+      est_m0 <- pmin(pmax(est_m0, 0), max(W[A == 0 & W[, j] > 0, j]))
       est_q1 <- pmin(pmax(est_q1, 0), 1)
       est_q0 <- pmin(pmax(est_q0, 0), 1)
 
