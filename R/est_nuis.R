@@ -176,7 +176,7 @@ est_nuis <- function(W,
       } else {
         # warning(paste0("Cross-fitting for E[W_", j,"|W_", j,">0,A=0,X] is impossible.\n",
         #                "Reverted to overall mean(W[A==0 & W[, j] > 0, j]).\n"))
-        est_m1 <- rep(mean(W[A == 0 & W[, j] > 0, j]), n)
+        est_m0 <- rep(mean(W[A == 0 & W[, j] > 0, j]), n)
       }
 
       # for each taxon j, estimate P(W_j>0|A=0,X)
