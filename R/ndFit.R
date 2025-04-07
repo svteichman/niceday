@@ -11,9 +11,9 @@ ndFit <- function(W, # matrix of responses
                   d = 0.1, # parameter for 'smooth median' centering
 
                   gtrunc = 0.01,
-                  
+
                   bs_rep = 1e5, # number of replicates for bootstrap sampling of uniform confidence intervals
-                  
+
                   num_crossval_folds = 10,
                   num_crossfit_folds = 10,
 
@@ -22,23 +22,13 @@ ndFit <- function(W, # matrix of responses
                   sl.lib.pi = c("SL.mean",
                                 "SL.lm",
                                 "SL.glm.binom",
-                                "SL.svm",
-                                "SL.xgboost",
-                                "SL.ranger",
-                                "SL.nnet"),
+                                "SL.xgboost.binom"),
+                  sl.lib.m = c("SL.mean",
+                               "SL.lm",
+                               "SL.glm.qpois",
+                               "SL.xgboost.pois"),
+                  sl.lib.q = sl.lib.pi,
 
-                  sl.lib.mu = c("SL.mean",
-                                "SL.lm",
-                                "SL.glm.qpois",
-                                "SL.svm",
-                                "SL.xgboost",
-                                "SL.ranger",
-                                "SL.nnet"),
-
-                  use_TMLE = TRUE,
-                  
-                  TMLE_fluctuation = "poisson",
-                  
                   adjust_covariates = TRUE,
 
                   nuis = NULL,
@@ -46,7 +36,7 @@ ndFit <- function(W, # matrix of responses
                   quiet = FALSE,
 
                   cross_fit = TRUE) {
-  
+
   # perform checks to ensure valid data input
   if (!is.data.frame(W)) {
     stop("W must be an nxJ data.frame")
@@ -109,24 +99,24 @@ ndFit <- function(W, # matrix of responses
 
   # standard error
   se_hat_psi_hat_ABC_simp <- sqrt(diag(covhat_est) / n)
-  
+
   lower_log_noadj_marg <- psi_hat_ABC_simp - qnorm(1 - alpha / 2) * se_hat_psi_hat_ABC_simp
   upper_log_noadj_marg <- psi_hat_ABC_simp + qnorm(1 - alpha / 2) * se_hat_psi_hat_ABC_simp
-  
+
   if (uniform_CI) {
     q <- quantile(apply(MASS::mvrnorm(n = 1e5, mu = rep(0, J),
                                       Sigma = corrhat_est),
                         1,
                         function(r){max(abs(r))}), 1 - alpha)
     cimult <- pmin(pmax(q, qnorm(1 - alpha / 2)), qnorm(1 - alpha / 2 / J))
-    
+
     lower_log_noadj_sim <- psi_hat_ABC_simp - cimult * se_hat_psi_hat_ABC_simp
     upper_log_noadj_sim <- psi_hat_ABC_simp + cimult * se_hat_psi_hat_ABC_simp
   } else {
     lower_log_noadj_sim <- NA
     upper_log_noadj_sim <- NA
   }
-  
+
   # apply smooth transformation of estimates
   g_plugin <- pseudohuber_center(x = est, d = d)
   grad_g_plugin <- dpseudohuber_center_dx(x = est, d = d)
@@ -140,20 +130,20 @@ ndFit <- function(W, # matrix of responses
   Sigmahat_g <- t(grad_h_mat) %*% covhat_est %*% grad_h_mat
   corrhat_g <- Sigmahat_g /
     (sqrt(diag(Sigmahat_g)) %*% t(sqrt(diag(Sigmahat_g))))
-  
+
   # standard error
   se_hat_psi_hat_ABC_g_simp <- sqrt(diag(Sigmahat_g) / n)
-  
+
   lower_g_log_noadj_marg <- psi_hat_ABC_g_simp - qnorm(1 - alpha / 2) * se_hat_psi_hat_ABC_g_simp
   upper_g_log_noadj_marg <- psi_hat_ABC_g_simp + qnorm(1 - alpha / 2) * se_hat_psi_hat_ABC_g_simp
-  
+
   if (uniform_CI) {
     q <- quantile(apply(MASS::mvrnorm(n = 1e5, mu = rep(0, J),
                                       Sigma = corrhat_g),
                         1,
                         function(r){max(abs(r))}), 1 - alpha)
     cimult <- pmin(pmax(q, qnorm(1 - alpha / 2)), qnorm(1 - alpha / 2 / J))
-    
+
     lower_g_log_noadj_sim <- psi_hat_ABC_g_simp - cimult * se_hat_psi_hat_ABC_g_simp
     upper_g_log_noadj_sim <- psi_hat_ABC_g_simp + cimult * se_hat_psi_hat_ABC_g_simp
   } else {
@@ -190,23 +180,21 @@ ndFit <- function(W, # matrix of responses
                        num_crossfit_folds = num_crossfit_folds,
                        num_crossval_folds = num_crossval_folds,
                        sl.lib.pi = sl.lib.pi,
-                       sl.lib.mu = sl.lib.mu,
+                       sl.lib.m = sl.lib.m,
+                       sl.lib.q = sl.lib.q,
                        enforce_pos_reg = enforce_pos_reg,
                        quiet = quiet)
     }
-    
+
     # estimate log-fold ratio log(E[E[W_j|A=1,X]] / E[E[W_j|A=0,X]]) + c
     psi_ABCD <- est_psi_ABCD(W = W,
                              A = A,
                              X = X,
                              nuis = nuis,
-                             gtrunc = gtrunc,
                              alpha = alpha,
                              bs_rep = bs_rep,
                              d = d,
                              uniform_CI = uniform_CI,
-                             use_TMLE = use_TMLE,
-                             TMLE_fluctuation = TMLE_fluctuation,
                              quiet = quiet)
 
     results_adjust <- list(ABCD = data.frame(taxon = 1:J,
@@ -230,7 +218,7 @@ ndFit <- function(W, # matrix of responses
     results_adjust <- NULL
     nuis <- NULL
   }
-  
+
   # now return results
   results <- list(noadjust = results_simple,
                   adjust = results_adjust,
