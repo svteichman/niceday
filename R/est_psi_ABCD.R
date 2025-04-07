@@ -5,41 +5,23 @@ est_psi_ABCD <- function(W,
                          X,
                          nuis,
                          d = 0.1,
-                         gtrunc = 0.01,
                          alpha = 0.05,
                          bs_rep = 1e5,
                          uniform_CI = TRUE,
-                         use_TMLE = TRUE,
-                         TMLE_fluctuation = "poisson",
                          quiet = FALSE) {
 
   n <- nrow(W)
   J <- ncol(W)
 
-  #################################################
-  # Step 1:                                       #
-  # Construct one-step estimator of E[E[W|A=a,X]] #
-  #################################################
+  ####################################################
+  # Step 1:                                          #
+  # Extract cross-fitted nuisances for E[E[W|A=a,X]] #
+  ####################################################
 
   fold_list <- nuis$fold_list
   nfold <- length(fold_list)
 
-  # create arrays to store estimated influence function applied to data across folds
-  if_AIPW1_array <- array(NA,
-                          dim = list(n, J, nfold),
-                          dimnames = c(list(paste0("samp", 1:n)),
-                                       list(paste0("tax", 1:J)),
-                                       list(paste0("fold", 1:nfold))))
-  if_AIPW0_array <- if_AIPW1_array
-
-  # create arrays to store estimated AIPW estimator of E[E[W|A=a,X]] across folds
-  est_AIPW1_mat <- array(NA,
-                         dim = list(J, nfold),
-                         dimnames = c(list(paste0("tax", 1:J)),
-                                      list(paste0("fold", 1:nfold))))
-  est_AIPW0_mat <- est_AIPW1_mat
-
-  # create matrices to store cross-fitted nuisances for P(A=1|X), E[W_j|W_j>0,A,X], and P(W_j>0|A,X)
+  # create matrices to store cross-fitted nuisances
   cf_est_m1 <- matrix(NA, nrow = n, ncol = J,
                        dimnames = c(list(paste0("samp", 1:n)),
                                     list(paste0("tax", 1:J))))
@@ -52,50 +34,14 @@ est_psi_ABCD <- function(W,
     samp_subset_k <- unname(fold_list[[k]])
     samp_subset_comp_k <- sort(unname(unlist(fold_list[-k])))
 
-    # map nuisance to variables
-    est_m1_k <- nuis$mat_m1[,,k]
-    est_m0_k <- nuis$mat_m0[,,k]
-
-    est_q1_k <- nuis$mat_q1[,,k]
-    est_q0_k <- nuis$mat_q0[,,k]
-
-    est_pi_k <- nuis$mat_pi[,,k]
-
     # store the cross-fitted nuisances
-    cf_est_m1[samp_subset_k, ] <- est_m1_k[samp_subset_k,]
-    cf_est_m0[samp_subset_k, ] <- est_m0_k[samp_subset_k,]
+    cf_est_m1[samp_subset_k, ] <- nuis$mat_m1[samp_subset_k, , k, drop = FALSE]
+    cf_est_m0[samp_subset_k, ] <- nuis$mat_m0[samp_subset_k, , k, drop = FALSE]
 
-    cf_est_q1[samp_subset_k, ] <- est_q1_k[samp_subset_k,]
-    cf_est_q0[samp_subset_k, ] <- est_q0_k[samp_subset_k,]
+    cf_est_q1[samp_subset_k, ] <- nuis$mat_q1[samp_subset_k, , k, drop = FALSE]
+    cf_est_q0[samp_subset_k, ] <- nuis$mat_q0[samp_subset_k, , k, drop = FALSE]
 
-    cf_esp_pi[samp_subset_k] <- est_pi_k[samp_subset_k]
-
-    # calculate plug-in estimator
-    plugin_AIPW1_k <- colMeans(est_m1_k[samp_subset_comp_k, , drop = FALSE] *
-                                 est_q1_k[samp_subset_comp_k, , drop = FALSE])
-
-    plugin_AIPW0_k <- colMeans(est_m0_k[samp_subset_comp_k, , drop = FALSE] *
-                                 est_q0_k[samp_subset_comp_k, , drop = FALSE])
-
-    # calculate the influence functions for E[E[W|A=a,X]]
-    if_AIPW1_k <- t(t((A == 1) * (W - est_m1_k * est_q1_k) / est_pi_k + est_m1_k * est_q1_k) - plugin_AIPW1_k)
-    if_AIPW0_k <- t(t((A == 0) * (W - est_m0_k * est_q0_k) / (1 - est_pi_k) + est_m0_k * est_q0_k) - plugin_AIPW0_k)
-
-    # save results
-    if_AIPW1_array[,,k] <- as.matrix(if_AIPW1_k)
-    if_AIPW0_array[,,k] <- as.matrix(if_AIPW0_k)
-  }
-
-  # calculate average value of the estimated influence function applied to each data point across cross-fitted slices
-  avg_if_AIPW1 <- apply(if_AIPW1_array, c(1, 2), mean)
-  avg_if_AIPW0 <- apply(if_AIPW0_array, c(1, 2), mean)
-
-  # confirm that the infleunce function contains only real-valued numbers
-  if (!all(is.numeric(c(avg_if_AIPW0, avg_if_AIPW1)) &
-           is.finite(c(avg_if_AIPW0, avg_if_AIPW1)) &
-           !is.nan(c(avg_if_AIPW0, avg_if_AIPW1)) &
-           !is.na(c(avg_if_AIPW0, avg_if_AIPW1)))) {
-    stop("The estimated influence function contains non-real-valued numbers.")
+    cf_esp_pi[samp_subset_k] <- nuis$mat_pi[samp_subset_k, , k, drop = TRUE]
   }
 
   #####################################################################
@@ -105,6 +51,11 @@ est_psi_ABCD <- function(W,
   #####################################################################
 
   est_AIPW0_tmle <- est_AIPW1_tmle <- rep(NA, J)
+
+  mhat_1_update <- matrix(NA, nrow = n, ncol = J,
+                          dimnames = c(list(paste0("samp", 1:n)),
+                                       list(paste0("tax", 1:J))))
+  qhat_0_update <- qhat_1_update <- mhat_0_update <- mhat_1_update
 
   if (!quiet) {
     cat("Beginning TMLE\n")
@@ -119,7 +70,7 @@ est_psi_ABCD <- function(W,
     mhat_0j <- cf_est_m0[, j]
     mhat_Aj <- ifelse(A == 1, mhat_1j, mhat_0j)
 
-    # we cannot estimate E[W_j|W_j>0,A,X] by zero, so replace by smallest prediction
+    # shift falsifiable estimates of E[W_j|W_j>0,A,X]
     which_shift_m <- W[, j] > 0 & mhat_Aj == 0
     shift_m <- min(c(c(W[W[, j] > 0, j]),
                    c(nuis$mat_m0[ , j, ])[c(nuis$mat_m0[ , j, ]) > 0],
@@ -160,12 +111,12 @@ est_psi_ABCD <- function(W,
       qhat_0j <- cf_est_q0[, j]
       qhat_Aj <- ifelse(A == 1, qhat_1j, qhat_0j)
 
-      # we cannot estimate P(W_j>0|A,X) by zero or one, so truncate by a small amount
+      # truncate falsifiable estimates of P(W_j>0|A,X)
       which_trunc_q <- (W[, j] > 0 & qhat_Aj == 0) | (W[, j] == 0 & qhat_Aj == 1)
       qpreds <- c(c(nuis$mat_q0[ , j, ]), c(nuis$mat_q1[ , j, ]))
       trunc_q <- min(c(c(qpreds[qpreds > 0], 1 - qpreds[qpreds < 1]),
                        1 - mean(W[, j] > 0), mean(W[, j] > 0),
-                       1e-4))
+                       1 / sum(which_trunc_q) / 2))
       qhat_1j[which_trunc_q] <- pmax(pmin(qhat_1j[which_trunc_q], 1 - trunc_q), trunc_q)
       qhat_0j[which_trunc_q] <- pmax(pmin(qhat_0j[which_trunc_q], 1 - trunc_q), trunc_q)
       qhat_Aj <- ifelse(A == 1, qhat_1j, qhat_0j)
@@ -180,8 +131,7 @@ est_psi_ABCD <- function(W,
                                          clever.offset = qlogis(qhat_Aj),
                                          clever.covar1 = A,
                                          clever.covar2 = 1 - A,
-                                         clever.subset = (W[, j] > 0 & qhat_Aj < 1) |
-                                                         (W[, j] == 0 & qhat_Aj > 0)),
+                                         clever.subset = !((W[, j] > 0 & qhat_Aj == 1) | (W[, j] == 0 & qhat_Aj == 0))),
                             family = quasibinomial(link = "logit"),
                             control = glm.control(epsilon = 1e-10,
                                                   maxit = 1e3)))
@@ -189,15 +139,6 @@ est_psi_ABCD <- function(W,
       qhat_1j_update <- plogis(qlogis(qhat_1j) + q_epsilon[1] * A)
       qhat_0j_update <- plogis(qlogis(qhat_0j) + q_epsilon[2] * (1 - A))
       qhat_Aj_update <- ifelse(A == 1, qhat_1j_update, qhat_0j_update)
-
-      # ggplot(data = data.frame(pred = qhat_1j_update,
-      #                          actual = factor(ifelse(W[, j] > 0, 1, 0)),
-      #                          treatment = factor(A))) +
-      #   geom_jitter(aes(x = treatment, y = pred, color = actual), width = 0.2, alpha = 0.5) +
-      #   labs(title = "Logistic Regression Fit",
-      #        x = "Treatment (A)",
-      #        y = "Probability / Outcome") +
-      #   theme_minimal()
     }
 
     if (any(abs(c(mean((A == 0) * (W[, j] - mhat_0j_update * qhat_0j_update) / (1 - cf_esp_pi)),
@@ -209,6 +150,12 @@ est_psi_ABCD <- function(W,
 
     est_AIPW1_tmle[j] <- mean(mhat_1j_update * qhat_1j_update)
     est_AIPW0_tmle[j] <- mean(mhat_0j_update * qhat_0j_update)
+
+    mhat_1_update[, j] <- mhat_1j_update
+    qhat_1_update[, j] <- qhat_1j_update
+
+    mhat_0_update[, j] <- mhat_0j_update
+    qhat_0_update[, j] <- qhat_0j_update
 
     # update progress bar
     if (!quiet) {
@@ -223,12 +170,17 @@ est_psi_ABCD <- function(W,
 
   # construct the TMLE estimator
   est_log_AIPW <- log(est_AIPW1_tmle) - log(est_AIPW0_tmle)
-  est_AIPW1 <- est_AIPW1_tmle
-  est_AIPW0 <- est_AIPW0_tmle
 
-  avg_if_log_AIPW <- t(t(avg_if_AIPW1) / est_AIPW1) - t(t(avg_if_AIPW0) / est_AIPW0)
+  # calculate the influence functions evaluated at each point using TMLE estimator
+  if_AIPW1_tmle <- t(t((A == 1) * (W - mhat_1_update * qhat_1_update) / (cf_esp_pi) +
+                         mhat_1_update * qhat_1_update) - est_AIPW1_tmle)
 
-  Sigmahat_log_AIPW <- cov(avg_if_log_AIPW)
+  if_AIPW0_tmle <- t(t((A == 0) * (W - mhat_0_update * qhat_0_update) / (1 - cf_esp_pi) +
+                         mhat_0_update * qhat_0_update) - est_AIPW0_tmle)
+
+  if_log_AIPW_tmle <- t(t(if_AIPW1_tmle) / est_AIPW1_tmle) - t(t(if_AIPW0_tmle) / est_AIPW0_tmle)
+
+  Sigmahat_log_AIPW <- cov(if_log_AIPW_tmle)
 
   ###########################################################################
   # Step 3:                                                                 #
@@ -239,9 +191,9 @@ est_psi_ABCD <- function(W,
 
   est_grad_g_log_AIPW <- niceday::dpseudohuber_center_dx(x = est_log_AIPW, d = d)
 
-  avg_if_g_log_AIPW <- avg_if_log_AIPW - (avg_if_log_AIPW %*% est_grad_g_log_AIPW) %*% rep(1, J)
+  if_g_log_AIPW_tmle <- if_log_AIPW_tmle - (if_log_AIPW_tmle %*% est_grad_g_log_AIPW) %*% rep(1, J)
 
-  Sigmahat_g_log_AIPW <- cov(avg_if_g_log_AIPW)
+  Sigmahat_g_log_AIPW <- cov(if_g_log_AIPW_tmle)
 
   ##########################################################################
   # Step 4:                                                                #
@@ -256,7 +208,7 @@ est_psi_ABCD <- function(W,
 
   if (uniform_CI) {
     q <- quantile(apply(MASS::mvrnorm(n = bs_rep, mu = rep(0, J),
-                                      Sigma = cor(avg_if_log_AIPW)),
+                                      Sigma = cor(if_log_AIPW_tmle)),
                         1,
                         function(r){max(abs(r))}), 1 - alpha)
     cimult <- pmin(pmax(q, qnorm(1 - alpha / 2)), qnorm(1 - alpha / 2 / J))
@@ -278,7 +230,7 @@ est_psi_ABCD <- function(W,
 
   if (uniform_CI) {
     q <- quantile(apply(MASS::mvrnorm(n = bs_rep, mu = rep(0, J),
-                                      Sigma = cor(avg_if_g_log_AIPW)),
+                                      Sigma = cor(if_g_log_AIPW_tmle)),
                         1,
                         function(r){max(abs(r))}), 1 - alpha)
     cimult_g <- pmin(pmax(q, qnorm(1 - alpha / 2)), qnorm(1 - alpha / 2 / J))
@@ -303,7 +255,7 @@ est_psi_ABCD <- function(W,
                     lower_sim = lower_log_AIPW_sim,
                     upper_sim = upper_log_AIPW_sim,
                     pval = pval_log_AIPW,
-                    type = ifelse(use_TMLE, "TMLE", "OSE"),
+                    type = "TMLE",
                     row.names = NULL)
 
   res_g <- data.frame(taxon = 1:ncol(W),
@@ -315,7 +267,7 @@ est_psi_ABCD <- function(W,
                       lower_sim = lower_g_log_AIPW_sim,
                       upper_sim = upper_g_log_AIPW_sim,
                       pval = pval_g_log_AIPW,
-                      type = ifelse(use_TMLE, "TMLE", "OSE"),
+                      type = "TMLE",
                       row.names = NULL)
 
   return(list(res = res,
@@ -325,8 +277,8 @@ est_psi_ABCD <- function(W,
                           cf_est_m1 = cf_est_m1,
                           cf_est_q0 = cf_est_q0,
                           cf_est_q1 = cf_est_q1),
-              crossfit_if = list(avg_if_AIPW1 = avg_if_AIPW1,
-                                 avg_if_AIPW0 = avg_if_AIPW0,
-                                 avg_if_log_AIPW = avg_if_log_AIPW,
-                                 avg_if_g_log_AIPW = avg_if_g_log_AIPW)))
+              crossfit_if = list(if_AIPW1_tmle = if_AIPW1_tmle,
+                                 if_AIPW0_tmle = if_AIPW0_tmle,
+                                 if_log_AIPW_tmle = if_log_AIPW_tmle,
+                                 if_g_log_AIPW_tmle = if_g_log_AIPW_tmle)))
 }
