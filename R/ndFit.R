@@ -183,6 +183,7 @@ ndFit <- function(W, # matrix of responses
                        sl.lib.m = sl.lib.m,
                        sl.lib.q = sl.lib.q,
                        enforce_pos_reg = enforce_pos_reg,
+                       gtrunc = gtrunc,
                        quiet = quiet)
     }
 
