@@ -86,15 +86,15 @@ est_psi_ABCD <- function(W,
     if_AIPW0_array[,,k] <- as.matrix(if_AIPW0_k)
   }
 
-  # calculate average value of the influence function across cross-fitted slices
+  # calculate average value of the estimated influence function applied to each data point across cross-fitted slices
   avg_if_AIPW1 <- apply(if_AIPW1_array, c(1, 2), mean)
   avg_if_AIPW0 <- apply(if_AIPW0_array, c(1, 2), mean)
 
   # confirm that the infleunce function contains only real-valued numbers
-  if (!all(is.numeric(c(avg_if_AIPW1, avg_if_AIPW1)) &
-           is.finite(c(avg_if_AIPW1, avg_if_AIPW1)) &
-           !is.nan(c(avg_if_AIPW1, avg_if_AIPW1)) &
-           !is.na(c(avg_if_AIPW1, avg_if_AIPW1)))) {
+  if (!all(is.numeric(c(avg_if_AIPW0, avg_if_AIPW1)) &
+           is.finite(c(avg_if_AIPW0, avg_if_AIPW1)) &
+           !is.nan(c(avg_if_AIPW0, avg_if_AIPW1)) &
+           !is.na(c(avg_if_AIPW0, avg_if_AIPW1)))) {
     stop("The estimated influence function contains non-real-valued numbers.")
   }
 
@@ -160,12 +160,15 @@ est_psi_ABCD <- function(W,
       qhat_0j <- cf_est_q0[, j]
       qhat_Aj <- ifelse(A == 1, qhat_1j, qhat_0j)
 
-      # we cannot estimate P(W_j>0|A,X) by zero or one, so truncate a small amount
+      # we cannot estimate P(W_j>0|A,X) by zero or one, so truncate by a small amount
+      which_trunc_q <- (W[, j] > 0 & qhat_Aj == 0) | (W[, j] == 0 & qhat_Aj == 1)
       qpreds <- c(c(nuis$mat_q0[ , j, ]), c(nuis$mat_q1[ , j, ]))
-      trunc_q <- min(c(c(qpreds[qpreds > 0], 1 - qpreds[qpreds < 1]), mean(ifelse(W[, j] > 0, 1, 0)), 1e-6))
-      qhat_1j <- pmax(pmin(qhat_1j, 1 - trunc_q), trunc_q)
-      qhat_0j <- pmax(pmin(qhat_0j, 1 - trunc_q), trunc_q)
-      qhat_Aj <- pmax(pmin(qhat_Aj, 1 - trunc_q), trunc_q)
+      trunc_q <- min(c(c(qpreds[qpreds > 0], 1 - qpreds[qpreds < 1]),
+                       1 - mean(W[, j] > 0), mean(W[, j] > 0),
+                       1e-4))
+      qhat_1j[which_trunc_q] <- pmax(pmin(qhat_1j[which_trunc_q], 1 - trunc_q), trunc_q)
+      qhat_0j[which_trunc_q] <- pmax(pmin(qhat_0j[which_trunc_q], 1 - trunc_q), trunc_q)
+      qhat_Aj <- ifelse(A == 1, qhat_1j, qhat_0j)
 
       q_epsilon <- coef(glm(formula = clever.resp ~ -1 + offset(clever.offset) + clever.covar1 + clever.covar2,
                             weights = clever.weight,
@@ -177,7 +180,8 @@ est_psi_ABCD <- function(W,
                                          clever.offset = qlogis(qhat_Aj),
                                          clever.covar1 = A,
                                          clever.covar2 = 1 - A,
-                                         clever.subset = TRUE),
+                                         clever.subset = (W[, j] > 0 & qhat_Aj < 1) |
+                                                         (W[, j] == 0 & qhat_Aj > 0)),
                             family = quasibinomial(link = "logit"),
                             control = glm.control(epsilon = 1e-10,
                                                   maxit = 1e3)))
@@ -185,10 +189,19 @@ est_psi_ABCD <- function(W,
       qhat_1j_update <- plogis(qlogis(qhat_1j) + q_epsilon[1] * A)
       qhat_0j_update <- plogis(qlogis(qhat_0j) + q_epsilon[2] * (1 - A))
       qhat_Aj_update <- ifelse(A == 1, qhat_1j_update, qhat_0j_update)
+
+      # ggplot(data = data.frame(pred = qhat_1j_update,
+      #                          actual = factor(ifelse(W[, j] > 0, 1, 0)),
+      #                          treatment = factor(A))) +
+      #   geom_jitter(aes(x = treatment, y = pred, color = actual), width = 0.2, alpha = 0.5) +
+      #   labs(title = "Logistic Regression Fit",
+      #        x = "Treatment (A)",
+      #        y = "Probability / Outcome") +
+      #   theme_minimal()
     }
 
     if (any(abs(c(mean((A == 0) * (W[, j] - mhat_0j_update * qhat_0j_update) / (1 - cf_esp_pi)),
-                  mean((A == 1) * (W[, j] - mhat_1j_update * qhat_1j_update) / cf_esp_pi))) > 1e-2)) {
+                  mean((A == 1) * (W[, j] - mhat_1j_update * qhat_1j_update) / cf_esp_pi))) > 1e-3)) {
       warning(paste("The TMLE fluctuation in taxon", j ,"seems to have poor fit.\n",
                     "A = 0:", mean((A == 0) * (W[, j] - mhat_0j_update * qhat_0j_update) / (1 - cf_esp_pi)),"\n",
                     "A = 1:", mean((A == 1) * (W[, j] - mhat_1j_update * qhat_1j_update) / cf_esp_pi),"\n"))
@@ -222,11 +235,11 @@ est_psi_ABCD <- function(W,
   # Apply Delta Method to learn log(E[E[W|A=1,X]] / E[E[W|A=0,X]]) - g(...) #
   ###########################################################################
 
-  est_g_log_AIPW <- est_log_AIPW - pseudohuber_center(x = est_log_AIPW, d = d)
+  est_g_log_AIPW <- est_log_AIPW - niceday::pseudohuber_center(x = est_log_AIPW, d = d)
 
-  est_grad_g_log_AIPW <- dpseudohuber_center_dx(x = est_log_AIPW, d = d)
+  est_grad_g_log_AIPW <- niceday::dpseudohuber_center_dx(x = est_log_AIPW, d = d)
 
-  avg_if_g_log_AIPW <- avg_if_log_AIPW - avg_if_log_AIPW %*% est_grad_g_log_AIPW %*% rep(1, J)
+  avg_if_g_log_AIPW <- avg_if_log_AIPW - (avg_if_log_AIPW %*% est_grad_g_log_AIPW) %*% rep(1, J)
 
   Sigmahat_g_log_AIPW <- cov(avg_if_g_log_AIPW)
 
