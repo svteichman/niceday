@@ -91,7 +91,7 @@ est_nuis <- function(W,
     #message(paste0("\nTaxon ", j, "\n"))
     for (k in 1:nfold) {
       #message(paste0("\nFold ", k, "\n"))
-      
+
       # identify which samples are used to estimate the conditional mean
       samp_subset <- 1:n %in% unname(fold_list[[k]])
       samp_subset_comp <- 1:n %in% sort(unname(unlist(fold_list[-k])))
@@ -128,7 +128,11 @@ est_nuis <- function(W,
       } else {
         # warning(paste0("Cross-fitting for E[W_", j,"|W_", j,">0,A=1,X] is impossible.\n",
         #                "Reverted to overall mean(W[A==1 & W[, j] > 0, j]).\n"))
-        est_m1 <- rep(mean(W[A == 1 & W[, j] > 0, j]), n)
+        if (sum(samp_subset_comp_m1) == 1) {
+          est_m1 <- rep(mean(W[samp_subset_comp_m1, j]), n)
+        } else {
+          est_m1 <- rep(mean(W[A == 1 & W[, j] > 0, j]), n)
+        }
       }
 
       # for each taxon j, estimate P(W_j>0|A=1,X)
@@ -176,7 +180,11 @@ est_nuis <- function(W,
       } else {
         # warning(paste0("Cross-fitting for E[W_", j,"|W_", j,">0,A=0,X] is impossible.\n",
         #                "Reverted to overall mean(W[A==0 & W[, j] > 0, j]).\n"))
-        est_m0 <- rep(mean(W[A == 0 & W[, j] > 0, j]), n)
+        if (sum(samp_subset_comp_m0) == 1) {
+          est_m0 <- rep(mean(W[samp_subset_comp_m0, j]), n)
+        } else {
+          est_m0 <- rep(mean(W[A == 0 & W[, j] > 0, j]), n)
+        }
       }
 
       # for each taxon j, estimate P(W_j>0|A=0,X)
@@ -230,8 +238,12 @@ est_nuis <- function(W,
                fold_list = fold_list)
 
   # warn user about important issues that may arise with nuisance estimates
-  if (any(is.na(mat_pi)) > 0) {
+  if (any(is.na(mat_pi))) {
     warning("The propensity score estimates contain missing values.")
+  }
+
+  if (any(is.nan(mat_pi))) {
+    warning("The propensity score estimates contain nan values.")
   }
 
   if (any(mat_pi == 0 & !is.na(mat_pi)) |
@@ -249,6 +261,13 @@ est_nuis <- function(W,
       any(is.na(mat_q0)) |
       any(is.na(mat_q1))) {
     warning("The conditional mean regression estimates contain missing values.")
+  }
+
+  if (any(is.nan(mat_m0)) |
+      any(is.nan(mat_m1)) |
+      any(is.nan(mat_q0)) |
+      any(is.nan(mat_q1))) {
+    warning("The conditional mean regression estimates contain nan values.")
   }
 
   if (any(mat_m0 < 0 & !is.na(mat_m0)) |
