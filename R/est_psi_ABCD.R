@@ -131,11 +131,13 @@ est_psi_ABCD <- function(W,
                                          clever.offset = qlogis(qhat_Aj),
                                          clever.covar1 = A,
                                          clever.covar2 = 1 - A,
-                                         clever.subset = !((W[, j] > 0 & qhat_Aj == 1) | (W[, j] == 0 & qhat_Aj == 0))),
+                                         clever.subset = !(qhat_Aj == 1 | qhat_Aj == 0)),
                             family = quasibinomial(link = "logit"),
                             control = glm.control(epsilon = 1e-10,
                                                   maxit = 1e3)))
 
+      # if perturbation coefficient is NA, set multiplicative effect to zero
+      q_epsilon <- ifelse(is.na(q_epsilon), 0, q_epsilon)
       qhat_1j_update <- plogis(qlogis(qhat_1j) + q_epsilon[1] * A)
       qhat_0j_update <- plogis(qlogis(qhat_0j) + q_epsilon[2] * (1 - A))
       qhat_Aj_update <- ifelse(A == 1, qhat_1j_update, qhat_0j_update)
