@@ -6,6 +6,7 @@ est_nuis <- function(W,
                      num_crossfit_folds = 10,
                      num_crossval_folds = 10,
                      gtrunc = 0.01,
+
                      sl.lib.pi = c("SL.mean",
                                    "SL.lm",
                                    "SL.glm.binom",
@@ -91,7 +92,7 @@ est_nuis <- function(W,
     #message(paste0("\nTaxon ", j, "\n"))
     for (k in 1:nfold) {
       #message(paste0("\nFold ", k, "\n"))
-      
+
       # identify which samples are used to estimate the conditional mean
       samp_subset <- 1:n %in% unname(fold_list[[k]])
       samp_subset_comp <- 1:n %in% sort(unname(unlist(fold_list[-k])))
