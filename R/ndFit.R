@@ -215,15 +215,18 @@ ndFit <- function(W, # matrix of responses
                                                lower_sim = psi_ABCD$res_g$lower_sim,
                                                upper_sim = psi_ABCD$res_g$upper_sim,
                                                type = psi_ABCD$res_g$type))
+    cf_nuis <- psi_ABCD$cf_nuis
   } else {
     results_adjust <- NULL
     nuis <- NULL
+    cf_nuis <- NULL
   }
 
   # now return results
   results <- list(noadjust = results_simple,
                   adjust = results_adjust,
-                  nuis = nuis)
+                  nuis = nuis,
+                  cf_nuis = cf_nuis)
 
   return(results)
 }

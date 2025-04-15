@@ -8,7 +8,8 @@ est_psi_ABCD <- function(W,
                          alpha = 0.05,
                          bs_rep = 1e5,
                          uniform_CI = TRUE,
-                         quiet = FALSE) {
+                         quiet = FALSE,
+                         tmle_fluctuation = "poisson") {
 
   n <- nrow(W)
   J <- ncol(W)
@@ -26,7 +27,7 @@ est_psi_ABCD <- function(W,
                        dimnames = c(list(paste0("samp", 1:n)),
                                     list(paste0("tax", 1:J))))
   cf_est_q0 <- cf_est_q1 <- cf_est_m0 <- cf_est_m1
-  cf_esp_pi <- rep(NA, n)
+  cf_est_pi <- rep(NA, n)
 
   # now iterate across folds
   for (k in 1:nfold) {
@@ -41,7 +42,7 @@ est_psi_ABCD <- function(W,
     cf_est_q1[samp_subset_k, ] <- nuis$mat_q1[samp_subset_k, , k, drop = FALSE]
     cf_est_q0[samp_subset_k, ] <- nuis$mat_q0[samp_subset_k, , k, drop = FALSE]
 
-    cf_esp_pi[samp_subset_k] <- nuis$mat_pi[samp_subset_k, , k, drop = TRUE]
+    cf_est_pi[samp_subset_k] <- nuis$mat_pi[samp_subset_k, , k, drop = TRUE]
   }
 
   #####################################################################
@@ -62,6 +63,10 @@ est_psi_ABCD <- function(W,
     pb <- txtProgressBar(min = 0, max = J, style = 3)
   }
 
+  tmle_perturbation <- matrix(NA, nrow = J, ncol = 6,
+                              dimnames = c(list(paste0("tax", 1:J)),
+                                           list(c("m1", "m0", "q1", "q0", "zstat1", "zstat0"))))
+
   for (j in 1:J) {
     ###############################################################################
     # Part A: apply ad-hoc perturbation to conditional mean regression if W_j > 0 #
@@ -72,31 +77,61 @@ est_psi_ABCD <- function(W,
 
     # shift falsifiable estimates of E[W_j|W_j>0,A,X]
     which_shift_m <- W[, j] > 0 & mhat_Aj == 0
+    if(any(which_shift_m)){message("shift required")}
     shift_m <- min(c(c(W[W[, j] > 0, j]),
                    c(nuis$mat_m0[ , j, ])[c(nuis$mat_m0[ , j, ]) > 0],
                    c(nuis$mat_m1[ , j, ])[c(nuis$mat_m1[ , j, ]) > 0]))
-    mhat_1j[which_shift_m] <- shift_m
-    mhat_0j[which_shift_m] <- shift_m
+    mhat_1j[which_shift_m] <- mhat_1j[which_shift_m] + shift_m
+    mhat_0j[which_shift_m] <- mhat_0j[which_shift_m] + shift_m
     mhat_Aj[which_shift_m] <- shift_m
 
-    m_epsilon <- coef(glm(formula = clever.resp ~ -1 + offset(clever.offset) + clever.covar1 + clever.covar2,
-                          weights = clever.weight,
-                          subset = clever.subset,
-                          data =
-                            data.frame(clever.resp   = W[, j],
-                                       clever.weight = (1 / ifelse(A == 1, cf_esp_pi, 1 - cf_esp_pi)) /
-                                         mean(1 / ifelse(A == 1, cf_esp_pi, 1 - cf_esp_pi)),
-                                       clever.offset = log(mhat_Aj),
-                                       clever.covar1 = A,
-                                       clever.covar2 = 1 - A,
-                                       clever.subset = W[, j] > 0),
-                          family = quasipoisson(link = "log"),
-                          control = glm.control(epsilon = 1e-10,
-                                                maxit = 1e3)))
+    if (tmle_fluctuation == "poisson") {
 
-    mhat_1j_update <- (mhat_1j) * exp(m_epsilon[1] * A)
-    mhat_0j_update <- (mhat_0j) * exp(m_epsilon[2] * (1 - A))
-    mhat_Aj_update <- ifelse(A == 1, mhat_1j_update, mhat_0j_update)
+      m_epsilon <- coef(glm(formula = clever.resp ~ -1 + offset(clever.offset) + clever.covar1 + clever.covar2,
+                            weights = clever.weight,
+                            subset = clever.subset,
+                            data =
+                              data.frame(clever.resp   = W[, j],
+                                         clever.weight = (1 / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)) /
+                                           mean(1 / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)),
+                                         clever.offset = log(mhat_Aj),
+                                         clever.covar1 = A,
+                                         clever.covar2 = 1 - A,
+                                         clever.subset = W[, j] > 0),
+                            family = quasipoisson(link = "log"),
+                            control = glm.control(epsilon = 1e-10,
+                                                  maxit = 1e3)))
+
+      mhat_1j_update <- mhat_1j * exp(m_epsilon[1] * A)
+      mhat_0j_update <- mhat_0j * exp(m_epsilon[2] * (1 - A))
+      mhat_Aj_update <- ifelse(A == 1, mhat_1j_update, mhat_0j_update)
+
+    } else if (tmle_fluctuation == "logistic") {
+
+      ub <- max(c(W[, j], mhat_0j, mhat_1j)) * 1.01
+      m_epsilon <- coef(glm(formula = clever.resp ~ -1 + offset(clever.offset) + clever.covar1 + clever.covar2,
+                            weights = clever.weight,
+                            subset = clever.subset,
+                            data =
+                              data.frame(clever.resp   = W[, j] / ub,
+                                         clever.weight = (1 / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)) /
+                                           mean(1 / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)),
+                                         clever.offset = qlogis(mhat_Aj / ub),
+                                         clever.covar1 = A,
+                                         clever.covar2 = 1 - A,
+                                         clever.subset = W[, j] > 0),
+                            family = quasibinomial(link = "logit"),
+                            control = glm.control(epsilon = 1e-10,
+                                                  maxit = 1e3)))
+
+      m_epsilon <- ifelse(is.na(m_epsilon), 0, m_epsilon)
+      mhat_1j_update <- plogis(qlogis(mhat_1j / ub) + m_epsilon[1] * A) * ub
+      mhat_0j_update <- plogis(qlogis(mhat_0j / ub) + m_epsilon[2] * (1 - A)) * ub
+      mhat_Aj_update <- ifelse(A == 1, mhat_1j_update, mhat_0j_update)
+
+    } else {
+      stop('Invalid choice for TMLE fluctuation, it must be either "poisson" or "logistic".')
+    }
 
     ####################################################################
     # Part B: apply perturbation to full iterated expectation estimate #
@@ -106,6 +141,7 @@ est_psi_ABCD <- function(W,
       qhat_1j_update <- rep(1, n)
       qhat_0j_update <- rep(1, n)
       qhat_Aj_update <- rep(1, n)
+      q_epsilon <- c(0, 0)
     } else {
       qhat_1j <- cf_est_q1[, j]
       qhat_0j <- cf_est_q0[, j]
@@ -113,6 +149,7 @@ est_psi_ABCD <- function(W,
 
       # truncate falsifiable estimates of P(W_j>0|A,X)
       which_trunc_q <- (W[, j] > 0 & qhat_Aj == 0) | (W[, j] == 0 & qhat_Aj == 1)
+      if(any(which_trunc_q)){message("trunc required")}
       qpreds <- c(c(nuis$mat_q0[ , j, ]), c(nuis$mat_q1[ , j, ]))
       trunc_q <- min(c(c(qpreds[qpreds > 0], 1 - qpreds[qpreds < 1]),
                        1 - mean(W[, j] > 0), mean(W[, j] > 0),
@@ -126,8 +163,8 @@ est_psi_ABCD <- function(W,
                             subset = clever.subset,
                             data =
                               data.frame(clever.resp   = ifelse(W[, j] > 0, 1, 0),
-                                         clever.weight = (mhat_Aj_update / ifelse(A == 1, cf_esp_pi, 1 - cf_esp_pi)) /
-                                           mean(mhat_Aj_update / ifelse(A == 1, cf_esp_pi, 1 - cf_esp_pi)),
+                                         clever.weight = (mhat_Aj_update / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)) /
+                                           mean(mhat_Aj_update / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)),
                                          clever.offset = qlogis(qhat_Aj),
                                          clever.covar1 = A,
                                          clever.covar2 = 1 - A,
@@ -136,22 +173,31 @@ est_psi_ABCD <- function(W,
                             control = glm.control(epsilon = 1e-10,
                                                   maxit = 1e3)))
 
-      # if perturbation coefficient is NA, set multiplicative effect to zero
+      # if perturbation coefficient is NA, make no change
       q_epsilon <- ifelse(is.na(q_epsilon), 0, q_epsilon)
       qhat_1j_update <- plogis(qlogis(qhat_1j) + q_epsilon[1] * A)
       qhat_0j_update <- plogis(qlogis(qhat_0j) + q_epsilon[2] * (1 - A))
-      qhat_Aj_update <- ifelse(A == 1, qhat_1j_update, qhat_0j_update)
     }
 
-    if (any(abs(c(mean((A == 0) * (W[, j] - mhat_0j_update * qhat_0j_update) / (1 - cf_esp_pi)),
-                  mean((A == 1) * (W[, j] - mhat_1j_update * qhat_1j_update) / cf_esp_pi))) > 1e-3)) {
+    if (any(abs(c(mean((A == 0) * (W[, j] - mhat_0j_update * qhat_0j_update) / (1 - cf_est_pi)),
+                  mean((A == 1) * (W[, j] - mhat_1j_update * qhat_1j_update) / cf_est_pi))) > 1e-2)) {
       warning(paste("The TMLE fluctuation in taxon", j ,"seems to have poor fit.\n",
-                    "A = 0:", mean((A == 0) * (W[, j] - mhat_0j_update * qhat_0j_update) / (1 - cf_esp_pi)),"\n",
-                    "A = 1:", mean((A == 1) * (W[, j] - mhat_1j_update * qhat_1j_update) / cf_esp_pi),"\n"))
+                    "A = 0:", mean((A == 0) * (W[, j] - mhat_0j_update * qhat_0j_update) / (1 - cf_est_pi)),"\n",
+                    "A = 1:", mean((A == 1) * (W[, j] - mhat_1j_update * qhat_1j_update) / cf_est_pi),"\n"))
     }
 
-    est_AIPW1_tmle[j] <- mean(mhat_1j_update * qhat_1j_update)
-    est_AIPW0_tmle[j] <- mean(mhat_0j_update * qhat_0j_update)
+    est_AIPW1_tmle[j] <- mean(mhat_1j_update * qhat_1j_update) # + mean((A / cf_est_pi) * (W[, j] - mhat_1j_update * qhat_1j_update))
+    est_AIPW0_tmle[j] <- mean(mhat_0j_update * qhat_0j_update) # + mean(((1 - A) / (1 - cf_est_pi)) * (W[, j] - mhat_0j_update * qhat_0j_update))
+
+    mhat_1j_update <- cf_est_m1[, j]
+    mhat_0j_update <- cf_est_m0[, j]
+    qhat_1j_update <- cf_est_q1[, j]
+    qhat_0j_update <- cf_est_q0[, j]
+    z1 <- sqrt(n) * mean((A / cf_est_pi) * (W[, j] - mhat_1j_update * qhat_1j_update)) /
+      sd((A / cf_est_pi) * (W[, j] - mhat_1j_update * qhat_1j_update))
+    z0 <- sqrt(n) * mean(((1 - A) / (1 - cf_est_pi)) * (W[, j] - mhat_0j_update * qhat_0j_update)) /
+      sd(((1 - A) / (1 - cf_est_pi)) * (W[, j] - mhat_0j_update * qhat_0j_update))
+    tmle_perturbation[j, ] <- c(m_epsilon, q_epsilon, z1, z0)
 
     mhat_1_update[, j] <- mhat_1j_update
     qhat_1_update[, j] <- qhat_1j_update
@@ -165,6 +211,19 @@ est_psi_ABCD <- function(W,
     }
   }
 
+  # plot(x = tmle_perturbation[, "m0"], y = tmle_perturbation[, "m1"],
+  #      xlab = "epsilon_m0", ylab = "epsilon_m1",
+  #      xlim = range(c(tmle_perturbation[, c("m0", "m1")])),
+  #      ylim = range(c(tmle_perturbation[, c("m0", "m1")]))); abline(h = 0); abline(v = 0)
+
+  # plot(x = tmle_perturbation[, "q0"], y = tmle_perturbation[, "q1"],
+  #      xlab = "epsilon_q0", ylab = "epsilon_q1",
+  #      xlim = c(-1, 1) * max(abs(range(c(tmle_perturbation[, c("q0", "q1")])))),
+  #      ylim = c(-1, 1) * max(abs(range(c(tmle_perturbation[, c("q0", "q1")]))))); abline(h = 0); abline(v = 0)
+
+  # hist(tmle_perturbation[, "zstat1"])
+  # hist(tmle_perturbation[, "zstat0"])
+
   ##################################################################
   # Step 2:                                                        #
   # Apply Delta Method to learn log(E[E[W|A=1,X]] / E[E[W|A=0,X]]) #
@@ -174,10 +233,10 @@ est_psi_ABCD <- function(W,
   est_log_AIPW <- log(est_AIPW1_tmle) - log(est_AIPW0_tmle)
 
   # calculate the influence functions evaluated at each point using TMLE estimator
-  if_AIPW1_tmle <- t(t((A == 1) * (W - mhat_1_update * qhat_1_update) / (cf_esp_pi) +
+  if_AIPW1_tmle <- t(t((A == 1) * (W - mhat_1_update * qhat_1_update) / (cf_est_pi) +
                          mhat_1_update * qhat_1_update) - est_AIPW1_tmle)
 
-  if_AIPW0_tmle <- t(t((A == 0) * (W - mhat_0_update * qhat_0_update) / (1 - cf_esp_pi) +
+  if_AIPW0_tmle <- t(t((A == 0) * (W - mhat_0_update * qhat_0_update) / (1 - cf_est_pi) +
                          mhat_0_update * qhat_0_update) - est_AIPW0_tmle)
 
   if_log_AIPW_tmle <- t(t(if_AIPW1_tmle) / est_AIPW1_tmle) - t(t(if_AIPW0_tmle) / est_AIPW0_tmle)
@@ -274,13 +333,13 @@ est_psi_ABCD <- function(W,
 
   return(list(res = res,
               res_g = res_g,
-              nuis = list(cf_esp_pi = cf_esp_pi,
-                          cf_est_m0 = cf_est_m0,
-                          cf_est_m1 = cf_est_m1,
-                          cf_est_q0 = cf_est_q0,
-                          cf_est_q1 = cf_est_q1),
-              crossfit_if = list(if_AIPW1_tmle = if_AIPW1_tmle,
-                                 if_AIPW0_tmle = if_AIPW0_tmle,
-                                 if_log_AIPW_tmle = if_log_AIPW_tmle,
-                                 if_g_log_AIPW_tmle = if_g_log_AIPW_tmle)))
+              cf_nuis = list(cf_est_pi = cf_est_pi,
+                             cf_est_m0 = cf_est_m0,
+                             cf_est_m1 = cf_est_m1,
+                             cf_est_q0 = cf_est_q0,
+                             cf_est_q1 = cf_est_q1),
+              cf_if = list(if_AIPW1_tmle = if_AIPW1_tmle,
+                           if_AIPW0_tmle = if_AIPW0_tmle,
+                           if_log_AIPW_tmle = if_log_AIPW_tmle,
+                           if_g_log_AIPW_tmle = if_g_log_AIPW_tmle)))
 }
