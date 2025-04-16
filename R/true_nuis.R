@@ -42,7 +42,7 @@ true_nuis <- function(W,
   if (drawV == "zinb") {
     q_oracle <- function(a, x, j) {
       return(
-        1 - (pzerovec[j] + (2 / (2 + muV_AX(a = a, x = x, j) / (1 - prop_zero[j])))^2 * (1 - pzerovec[j]))
+        1 - (pzerovec[j] + (2 / (2 + muV_AX(a = a, x = x, j) / (1 - pzerovec[j])))^2 * (1 - pzerovec[j]))
       )
     }
     m_oracle <- function(a, x, j) {
