@@ -182,21 +182,21 @@ est_psi_ABCD <- function(W,
     if (any(abs(c(mean((A == 0) * (W[, j] - mhat_0j_update * qhat_0j_update) / (1 - cf_est_pi)),
                   mean((A == 1) * (W[, j] - mhat_1j_update * qhat_1j_update) / cf_est_pi))) > 1e-2)) {
       warning(paste("The TMLE fluctuation in taxon", j ,"seems to have poor fit.\n",
-                    "A = 0:", mean((A == 0) * (W[, j] - mhat_0j_update * qhat_0j_update) / (1 - cf_est_pi)),"\n",
-                    "A = 1:", mean((A == 1) * (W[, j] - mhat_1j_update * qhat_1j_update) / cf_est_pi),"\n"))
+                    "A = 0:", mean(((1 - A) / (1 - cf_est_pi)) * (W[, j] - mhat_0j_update * qhat_0j_update)),"\n",
+                    "A = 1:", mean((A / cf_est_pi) * (W[, j] - mhat_1j_update * qhat_1j_update)),"\n"))
     }
 
+    # mhat_1j_update <- cf_est_m1[, j]
+    # mhat_0j_update <- cf_est_m0[, j]
+    # qhat_1j_update <- cf_est_q1[, j]
+    # qhat_0j_update <- cf_est_q0[, j]
     est_AIPW1_tmle[j] <- mean(mhat_1j_update * qhat_1j_update) # + mean((A / cf_est_pi) * (W[, j] - mhat_1j_update * qhat_1j_update))
     est_AIPW0_tmle[j] <- mean(mhat_0j_update * qhat_0j_update) # + mean(((1 - A) / (1 - cf_est_pi)) * (W[, j] - mhat_0j_update * qhat_0j_update))
 
-    mhat_1j_update <- cf_est_m1[, j]
-    mhat_0j_update <- cf_est_m0[, j]
-    qhat_1j_update <- cf_est_q1[, j]
-    qhat_0j_update <- cf_est_q0[, j]
-    z1 <- sqrt(n) * mean((A / cf_est_pi) * (W[, j] - mhat_1j_update * qhat_1j_update)) /
-      sd((A / cf_est_pi) * (W[, j] - mhat_1j_update * qhat_1j_update))
-    z0 <- sqrt(n) * mean(((1 - A) / (1 - cf_est_pi)) * (W[, j] - mhat_0j_update * qhat_0j_update)) /
-      sd(((1 - A) / (1 - cf_est_pi)) * (W[, j] - mhat_0j_update * qhat_0j_update))
+    z1 <- sqrt(n) * mean((A / cf_est_pi) * (W[, j] - cf_est_m1[, j] * cf_est_q1[, j])) /
+      sd((A / cf_est_pi) * (W[, j] - cf_est_m1[, j] * cf_est_q1[, j]))
+    z0 <- sqrt(n) * mean(((1 - A) / (1 - cf_est_pi)) * (W[, j] - cf_est_m0[, j] * cf_est_q0[, j])) /
+      sd(((1 - A) / (1 - cf_est_pi)) * (W[, j] - cf_est_m0[, j] * cf_est_q0[, j]))
     tmle_perturbation[j, ] <- c(m_epsilon, q_epsilon, z1, z0)
 
     mhat_1_update[, j] <- mhat_1j_update
@@ -210,6 +210,7 @@ est_psi_ABCD <- function(W,
       setTxtProgressBar(pb, j)
     }
   }
+  cat("\n")
 
   # plot(x = tmle_perturbation[, "m0"], y = tmle_perturbation[, "m1"],
   #      xlab = "epsilon_m0", ylab = "epsilon_m1",
@@ -221,8 +222,8 @@ est_psi_ABCD <- function(W,
   #      xlim = c(-1, 1) * max(abs(range(c(tmle_perturbation[, c("q0", "q1")])))),
   #      ylim = c(-1, 1) * max(abs(range(c(tmle_perturbation[, c("q0", "q1")]))))); abline(h = 0); abline(v = 0)
 
-  # hist(tmle_perturbation[, "zstat1"])
-  # hist(tmle_perturbation[, "zstat0"])
+  # hist(tmle_perturbation[, "zstat1"], breaks = J/2, xlim = c(-1, 1) * max(abs(tmle_perturbation[, "zstat1"])))
+  # hist(tmle_perturbation[, "zstat0"], breaks = J/2, xlim = c(-1, 1) * max(abs(tmle_perturbation[, "zstat0"])))
 
   ##################################################################
   # Step 2:                                                        #
@@ -233,10 +234,10 @@ est_psi_ABCD <- function(W,
   est_log_AIPW <- log(est_AIPW1_tmle) - log(est_AIPW0_tmle)
 
   # calculate the influence functions evaluated at each point using TMLE estimator
-  if_AIPW1_tmle <- t(t((A == 1) * (W - mhat_1_update * qhat_1_update) / (cf_est_pi) +
+  if_AIPW1_tmle <- t(t((A / cf_est_pi) * (W - mhat_1_update * qhat_1_update) +
                          mhat_1_update * qhat_1_update) - est_AIPW1_tmle)
 
-  if_AIPW0_tmle <- t(t((A == 0) * (W - mhat_0_update * qhat_0_update) / (1 - cf_est_pi) +
+  if_AIPW0_tmle <- t(t((1 - A) / (1 - cf_est_pi) * (W - mhat_0_update * qhat_0_update) +
                          mhat_0_update * qhat_0_update) - est_AIPW0_tmle)
 
   if_log_AIPW_tmle <- t(t(if_AIPW1_tmle) / est_AIPW1_tmle) - t(t(if_AIPW0_tmle) / est_AIPW0_tmle)
@@ -269,8 +270,7 @@ est_psi_ABCD <- function(W,
 
   if (uniform_CI) {
     q <- quantile(apply(MASS::mvrnorm(n = bs_rep, mu = rep(0, J),
-                                      Sigma = cor(if_log_AIPW_tmle)),
-                        1,
+                                      Sigma = cor(if_log_AIPW_tmle)), 1,
                         function(r){max(abs(r))}), 1 - alpha)
     cimult <- pmin(pmax(q, qnorm(1 - alpha / 2)), qnorm(1 - alpha / 2 / J))
 
@@ -291,8 +291,7 @@ est_psi_ABCD <- function(W,
 
   if (uniform_CI) {
     q <- quantile(apply(MASS::mvrnorm(n = bs_rep, mu = rep(0, J),
-                                      Sigma = cor(if_g_log_AIPW_tmle)),
-                        1,
+                                      Sigma = cor(if_g_log_AIPW_tmle)), 1,
                         function(r){max(abs(r))}), 1 - alpha)
     cimult_g <- pmin(pmax(q, qnorm(1 - alpha / 2)), qnorm(1 - alpha / 2 / J))
 
