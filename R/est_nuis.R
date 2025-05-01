@@ -16,7 +16,7 @@ est_nuis <- function(W,
                                   "SL.xgboost.pois"),
                      sl.lib.q = sl.lib.pi,
                      enforce_pos_reg = FALSE,
-                     quiet = FALSE) {
+                     verbose = FALSE) {
   require("SuperLearner")
 
   n <- nrow(W)
@@ -39,7 +39,7 @@ est_nuis <- function(W,
                                 list(paste0("fold", 1:nfold))))
   mat_q0 <- mat_q1 <- mat_m0 <- mat_m1
 
-  if(!quiet){cat("Beginning propensity score estimation\n")}
+  if(verbose %in% c(TRUE, "development")){cat("Beginning propensity score estimation\n")}
 
   ##################################
   ### Estimate propensity score: ###
@@ -65,11 +65,15 @@ est_nuis <- function(W,
                                               sum(A[samp_subset_comp] == 1)),
                                       stratifyCV = TRUE))$SL.predict)),
     error = function(e){
-      cat("An error occurred:\n", e$message, "\n")
+      if (verbose == "development") {
+        cat("An error occurred:\n", e$message, "\n")
+      }
       rep(mean(A[samp_subset_comp] == 1), n)
     },
     warning = function(w){
-      cat("A warning occurred:\n", w$message, "\n")
+      if (verbose == "development") {
+        cat("A warning occurred:\n", w$message, "\n")
+      }
       rep(mean(A[samp_subset_comp] == 1), n)
     })
 
@@ -82,7 +86,7 @@ est_nuis <- function(W,
   ###  E[W_j|A=1,X] and E[W_j|A=0,X] ###
   ######################################
 
-  if (!quiet) {
+  if (verbose %in% c(TRUE, "development")) {
     cat("Beginning conditional mean estimation\n")
     pb <- txtProgressBar(min = 0, max = J, style = 3)
   }
@@ -118,16 +122,22 @@ est_nuis <- function(W,
                                            cvControl = list(V = min(num_crossval_folds,
                                                                     sum(samp_subset_comp_m1))))$SL.predict)),
                            error = function(e){
-                             cat("An error occurred in taxon ", j, ":\n", e$message, "\n")
+                             if (verbose == "development") {
+                               cat("An error occurred in taxon ", j, ":\n", e$message, "\n")
+                             }
                              rep(mean(W[samp_subset_comp_m1, j]), n)
                            },
                            warning = function(w){
-                             cat("A warning occurred in taxon ", j, ":\n", w$message, "\n")
+                             if (verbose == "development") {
+                               cat("A warning occurred in taxon ", j, ":\n", w$message, "\n")
+                             }
                              rep(mean(W[samp_subset_comp_m1, j]), n)
                            })
       } else {
-        warning(paste0("Cross-fitting for E[W_", j,"|W_", j,">0,A=1,X] is impossible.\n",
-                       "Reverted to overall mean(W[A==1 & W[, j] > 0, j]).\n"))
+        if (verbose == "development") {
+          warning(paste0("Cross-fitting for E[W_", j,"|W_", j,">0,A=1,X] is impossible.\n",
+                         "Reverted to overall mean(W[A==1 & W[, j] > 0, j]).\n"))
+        }
         est_m1 <- rep(mean(W[A == 1 & W[, j] > 0, j]), n)
       }
 
@@ -143,14 +153,19 @@ est_nuis <- function(W,
                                            family = binomial(link = "logit"),
                                            SL.library = sl.lib.q,
                                            cvControl = list(V = min(num_crossval_folds,
-                                                                    sum(samp_subset_comp_q1)),
+                                                                    sum(W[samp_subset_comp_q1, j] > 0),
+                                                                    sum(W[samp_subset_comp_q1, j] == 0)),
                                                             stratifyCV = TRUE))$SL.predict)),
                            error = function(e){
-                             cat("An error occurred in taxon ", j, ":\n", e$message, "\n")
+                             if (verbose == "development") {
+                               cat("An error occurred in taxon ", j, ":\n", e$message, "\n")
+                             }
                              rep(mean(W[samp_subset_comp_q1, j] > 0), n)
                            },
                            warning = function(w){
-                             cat("A warning occurred in taxon ", j, ":\n", w$message, "\n")
+                             if (verbose == "development") {
+                               cat("A warning occurred in taxon ", j, ":\n", w$message, "\n")
+                             }
                              rep(mean(W[samp_subset_comp_q1, j] > 0), n)
                            })
       } else {
@@ -171,16 +186,22 @@ est_nuis <- function(W,
                                            cvControl = list(V = min(num_crossval_folds,
                                                                     sum(samp_subset_comp_m0))))$SL.predict)),
          error = function(e){
-           cat("An error occurred in taxon ", j, ":\n", e$message, "\n")
+           if (verbose == "development") {
+             cat("An error occurred in taxon ", j, ":\n", e$message, "\n")
+           }
            rep(mean(W[samp_subset_comp_m0, j]), n)
          },
          warning = function(w){
-           cat("A warning occurred in taxon ", j, ":\n", w$message, "\n")
+           if (verbose == "development") {
+             cat("A warning occurred in taxon ", j, ":\n", w$message, "\n")
+           }
            rep(mean(W[samp_subset_comp_m0, j]), n)
         })
       } else {
-        warning(paste0("Cross-fitting for E[W_", j,"|W_", j,">0,A=0,X] is impossible.\n",
-                       "Reverted to overall mean(W[A==0 & W[, j] > 0, j]).\n"))
+        if (verbose == "development") {
+          warning(paste0("Cross-fitting for E[W_", j,"|W_", j,">0,A=0,X] is impossible.\n",
+                         "Reverted to overall mean(W[A==0 & W[, j] > 0, j]).\n"))
+        }
         est_m0 <- rep(mean(W[A == 0 & W[, j] > 0, j]), n)
       }
 
@@ -196,14 +217,19 @@ est_nuis <- function(W,
                                            family = binomial(link = "logit"),
                                            SL.library = sl.lib.q,
                                            cvControl = list(V = min(num_crossval_folds,
-                                                                    sum(samp_subset_comp_q0)),
+                                                                    sum(W[samp_subset_comp_q0, j] > 0),
+                                                                    sum(W[samp_subset_comp_q0, j] == 0)),
                                                             stratifyCV = TRUE))$SL.predict)),
          error = function(e){
-           cat("An error occurred in taxon ", j, ":\n", e$message, "\n")
+           if (verbose == "development") {
+             cat("An error occurred in taxon ", j, ":\n", e$message, "\n")
+           }
            rep(mean(W[samp_subset_comp_q0, j] > 0), n)
          },
          warning = function(w){
-           cat("A warning occurred in taxon ", j, ":\n", w$message, "\n")
+           if (verbose == "development") {
+             cat("A warning occurred in taxon ", j, ":\n", w$message, "\n")
+           }
            rep(mean(W[samp_subset_comp_q0, j] > 0), n)
          })
       } else {
@@ -225,7 +251,7 @@ est_nuis <- function(W,
     }
 
     # update progress bar
-    if (!quiet) {
+    if (verbose %in% c(TRUE, "development")) {
       setTxtProgressBar(pb, j)
     }
   }

@@ -47,7 +47,11 @@ true_nuis <- function(W,
     }
     m_oracle <- function(a, x, j) {
       return(
-        muW_AX(a, x, j) / q_oracle(a, x, j)
+        if (q_oracle(a, x, j) > 0) {
+          muW_AX(a, x, j) / q_oracle(a, x, j)
+        } else {
+          0
+        }
       )
     }
   } else if (drawV == "poisson") {
@@ -75,6 +79,13 @@ true_nuis <- function(W,
       }
     }
   }
+
+  # repalce NaN entries with zero
+  mat_m0[is.nan(mat_m0)] <- 0
+  mat_m1[is.nan(mat_m1)] <- 0
+  mat_q0[is.nan(mat_q0)] <- 0
+  mat_q1[is.nan(mat_q1)] <- 0
+
 
   nuis <- list(mat_pi = mat_pi,
                mat_m0 = mat_m0,

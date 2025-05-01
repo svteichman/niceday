@@ -27,13 +27,14 @@ ndFit <- function(W, # matrix of responses
                                "SL.lm",
                                "SL.glm.qpois",
                                "SL.xgboost.pois"),
+
                   sl.lib.q = sl.lib.pi,
 
                   adjust_covariates = TRUE,
 
                   nuis = NULL,
 
-                  quiet = FALSE,
+                  verbose = FALSE,
 
                   cross_fit = TRUE) {
 
@@ -184,7 +185,7 @@ ndFit <- function(W, # matrix of responses
                        sl.lib.q = sl.lib.q,
                        enforce_pos_reg = enforce_pos_reg,
                        gtrunc = gtrunc,
-                       quiet = quiet)
+                       verbose = verbose)
     }
 
     # estimate log-fold ratio log(E[E[W_j|A=1,X]] / E[E[W_j|A=0,X]]) + c
@@ -196,7 +197,7 @@ ndFit <- function(W, # matrix of responses
                              bs_rep = bs_rep,
                              d = d,
                              uniform_CI = uniform_CI,
-                             quiet = quiet)
+                             verbose = verbose)
 
     results_adjust <- list(ABCD = data.frame(taxon = 1:J,
                                              est = psi_ABCD$res$est,

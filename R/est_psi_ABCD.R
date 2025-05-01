@@ -8,7 +8,7 @@ est_psi_ABCD <- function(W,
                          alpha = 0.05,
                          bs_rep = 1e5,
                          uniform_CI = TRUE,
-                         quiet = FALSE,
+                         verbose = FALSE,
                          tmle_fluctuation = "poisson") {
 
   n <- nrow(W)
@@ -58,7 +58,7 @@ est_psi_ABCD <- function(W,
                                        list(paste0("tax", 1:J))))
   qhat_0_update <- qhat_1_update <- mhat_0_update <- mhat_1_update
 
-  if (!quiet) {
+  if (verbose) {
     cat("Beginning TMLE\n")
     pb <- txtProgressBar(min = 0, max = J, style = 3)
   }
@@ -206,7 +206,7 @@ est_psi_ABCD <- function(W,
     qhat_0_update[, j] <- qhat_0j_update
 
     # update progress bar
-    if (!quiet) {
+    if (verbose) {
       setTxtProgressBar(pb, j)
     }
   }
