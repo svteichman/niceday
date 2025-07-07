@@ -72,7 +72,7 @@ est_nuis <- function(W,
     }
 
     fit_pi <- function(SL.library, subset_id) {
-      #suppressMessages(capture.output({
+      #suppressMessages(
         withCallingHandlers(expr = {
           out <- c(SuperLearner(Y = A[subset_id],
                          X = setNames(object = data.frame(X[subset_id, , drop = FALSE]),
@@ -89,7 +89,7 @@ est_nuis <- function(W,
         }, warning = function(w) {
           if (allow_warnings) {invokeRestart("muffleWarning")} else {stop(conditionMessage(w))}
         })
-      #}, type = "message"))
+      #)
       return(out)
     }
 
@@ -151,15 +151,15 @@ est_nuis <- function(W,
         samp_subset_comp <- 1:n %in% sort(unname(unlist(fold_list[-k])))
       }
 
-      fit_m <- function(SL.library, subset_id) {
-        #suppressMessages(capture.output({
+      fit_m <- function(SL.library, subset_id, method) {
+        #suppressMessages(
           withCallingHandlers(expr = {
             out <- c(SuperLearner(Y = W[subset_id, j, drop = TRUE],
                            X = setNames(object = data.frame(X[subset_id, , drop = FALSE]),
                                         nm = paste0("X", 1:ncol(X))),
                            newX = setNames(object = data.frame(X),
                                            nm = paste0("X", 1:ncol(X))),
-                           method = method.NNLS,
+                           method = method,
                            family = gaussian(link = "identity"),
                            SL.library = SL.library,
                            cvControl = list(V = min(num_crossval_folds,
@@ -168,20 +168,20 @@ est_nuis <- function(W,
           }, warning = function(w) {
             if (allow_warnings) {invokeRestart("muffleWarning")} else {stop(conditionMessage(w))}
           })
-        #}, type = "message"))
+        #)
         return(out)
       }
 
       # for each taxon j, estimate P(W_j>0|A=1,X)
-      fit_q <- function(SL.library, subset_id) {
-        #suppressMessages(capture.output({
+      fit_q <- function(SL.library, subset_id, method) {
+        #suppressMessages(
           withCallingHandlers(expr = {
             out <- c(SuperLearner(Y = ifelse(W[subset_id, j] > 0, 1, 0),
                            X = setNames(object = data.frame(X[subset_id, , drop = FALSE]),
                                         nm = paste0("X", 1:ncol(X))),
                            newX = setNames(object = data.frame(X),
                                            nm = paste0("X", 1:ncol(X))),
-                           method = method.NNloglik,
+                           method = method,
                            family = binomial(link = "logit"),
                            SL.library = SL.library,
                            cvControl = list(V = min(num_crossval_folds,
@@ -192,7 +192,7 @@ est_nuis <- function(W,
           }, warning = function(w) {
             if (allow_warnings) {invokeRestart("muffleWarning")} else {stop(conditionMessage(w))}
           })
-        #}, type = "message"))
+        #)
         return(out)
       }
 
@@ -201,25 +201,28 @@ est_nuis <- function(W,
         # Attempt 1:
         # try to fit cross-fitted, user-specified SuperLearner models
         {flag_m1 <<- 1 # ; cat("Attempt 1\n")
-         if (length(W[samp_subset_comp & A == 1 & W[, j] > 0, j]) <= 1) {stop("Skip")}
+         if (length(unique(W[samp_subset_comp & A == 1 & W[, j] > 0, j])) <= 1) {stop("Skip")}
          fit_m(SL.library = sl.lib.m,
-               subset_id = samp_subset_comp & A == 1 & W[, j] > 0)},
+               subset_id = samp_subset_comp & A == 1 & W[, j] > 0,
+               method = "method.NNLS")},
         error = function(e1) {
           tryCatch(
             # Attempt 2:
             # try to fit cross-fitted intercept and GLM SuperLearner models
             {flag_m1 <<- 2 # ; cat("Attempt 2\n")
-             if (length(W[samp_subset_comp & A == 1 & W[, j] > 0, j]) <= 1) {stop("Skip")}
+             if (length(unique(W[samp_subset_comp & A == 1 & W[, j] > 0, j])) <= 1) {stop("Skip")}
              fit_m(SL.library = c("SL.mean", "SL.glm.qpois"),
-                   subset_id = samp_subset_comp & A == 1 & W[, j] > 0)},
+                   subset_id = samp_subset_comp & A == 1 & W[, j] > 0,
+                   method = "method.NNLS")},
             error = function(e2) {
               tryCatch(
                 # Attempt 3:
                 # try to fit full-data intercept and GLM SuperLearner models
                 {flag_m1 <<- 3 # ; cat("Attempt 3\n")
-                 if (length(W[A == 1 & W[, j] > 0, j]) <= 1) {stop("Skip")}
+                 if (length(unique(W[A == 1 & W[, j] > 0, j])) <= 1) {stop("Skip")}
                  fit_m(SL.library = c("SL.mean", "SL.glm.qpois"),
-                       subset_id = c(A == 1 & W[, j] > 0))},
+                       subset_id = c(A == 1 & W[, j] > 0),
+                       method = "method.NNLS")},
                  error = function(e3) {
                   # Attempt 4:
                   # if all else fails, take the full-data empirical mean
@@ -237,25 +240,28 @@ est_nuis <- function(W,
         # Attempt 1:
         # try to fit cross-fitted, user-specified SuperLearner models
         {flag_m0 <<- 1 # ; cat("Attempt 1\n")
-         if (length(W[samp_subset_comp & A == 0 & W[, j] > 0, j]) <= 1) {stop("Skip")}
+         if (length(unique(W[samp_subset_comp & A == 0 & W[, j] > 0, j])) <= 1) {stop("Skip")}
          fit_m(SL.library = sl.lib.m,
-               subset_id = samp_subset_comp & A == 0 & W[, j] > 0)},
+               subset_id = samp_subset_comp & A == 0 & W[, j] > 0,
+               method = "method.NNLS")},
         error = function(e1) {
           tryCatch(
             # Attempt 2:
             # try to fit cross-fitted intercept and GLM SuperLearner models
             {flag_m0 <<- 2 # ; cat("Attempt 2\n")
-             if (length(W[samp_subset_comp & A == 0 & W[, j] > 0, j]) <= 1) {stop("Skip")}
+             if (length(unique(W[samp_subset_comp & A == 0 & W[, j] > 0, j])) <= 1) {stop("Skip")}
              fit_m(SL.library = c("SL.mean", "SL.glm.qpois"),
-                   subset_id = samp_subset_comp & A == 0 & W[, j] > 0)},
+                   subset_id = samp_subset_comp & A == 0 & W[, j] > 0,
+                   method = "method.NNLS")},
             error = function(e2) {
               tryCatch(
                 # Attempt 3:
                 # try to fit full-data intercept and GLM SuperLearner models
                 {flag_m0 <<- 3 # ; cat("Attempt 3\n")
-                 if (length(W[A == 0 & W[, j] > 0, j]) <= 1) {stop("Skip")}
+                 if (length(unique(W[A == 0 & W[, j] > 0, j])) <= 1) {stop("Skip")}
                  fit_m(SL.library = c("SL.mean", "SL.glm.qpois"),
-                       subset_id = c(A == 0 & W[, j] > 0))},
+                       subset_id = c(A == 0 & W[, j] > 0),
+                       method = "method.NNLS")},
                 error = function(e3) {
                   # Attempt 4:
                   # if all else fails, take the full-data empirical mean
@@ -276,7 +282,8 @@ est_nuis <- function(W,
          if (sum(W[samp_subset_comp & A == 1, j]  > 0) <= 1 |
              sum(W[samp_subset_comp & A == 1, j] == 0) <= 1) {stop("Skip")}
          fit_q(SL.library = sl.lib.q,
-               subset_id = samp_subset_comp & A == 1)},
+               subset_id = samp_subset_comp & A == 1,
+               method = "method.NNloglik")},
         error = function(e1) {
           tryCatch(
             # Attempt 2:
@@ -285,7 +292,8 @@ est_nuis <- function(W,
              if (sum(W[samp_subset_comp & A == 1, j]  > 0) <= 1 |
                  sum(W[samp_subset_comp & A == 1, j] == 0) <= 1) {stop("Skip")}
              fit_q(SL.library = c("SL.mean", "SL.glm.binom"),
-                   subset_id = samp_subset_comp & A == 1)},
+                   subset_id = samp_subset_comp & A == 1,
+                   method = "method.NNloglik")},
             error = function(e2) {
               tryCatch(
                 # Attempt 3:
@@ -294,7 +302,8 @@ est_nuis <- function(W,
                  if (sum(W[A == 1, j]  > 0) <= 1 |
                      sum(W[A == 1, j] == 0) <= 1) {stop("Skip")}
                  fit_q(SL.library = c("SL.mean", "SL.glm.binom"),
-                       subset_id = c(A == 1))},
+                       subset_id = c(A == 1),
+                       method = "method.NNLS")},
                 error = function(e3) {
                   # Attempt 4:
                   # if all else fails, take the full-data empirical mean
@@ -315,7 +324,8 @@ est_nuis <- function(W,
          if (sum(W[samp_subset_comp & A == 0, j]  > 0) <= 1 |
              sum(W[samp_subset_comp & A == 0, j] == 0) <= 1) {stop("Skip")}
          fit_q(SL.library = sl.lib.q,
-               subset_id = samp_subset_comp & A == 0)},
+               subset_id = samp_subset_comp & A == 0,
+               method = "method.NNloglik")},
         error = function(e1) {
           tryCatch(
             # Attempt 2:
@@ -324,7 +334,8 @@ est_nuis <- function(W,
              if (sum(W[samp_subset_comp & A == 0, j]  > 0) <= 1 |
                  sum(W[samp_subset_comp & A == 0, j] == 0) <= 1) {stop("Skip")}
              fit_q(SL.library = c("SL.mean", "SL.glm.binom"),
-                   subset_id = samp_subset_comp & A == 0)},
+                   subset_id = samp_subset_comp & A == 0,
+                   method = "method.NNloglik")},
             error = function(e2) {
               tryCatch(
                 # Attempt 3:
@@ -333,7 +344,8 @@ est_nuis <- function(W,
                  if (sum(W[A == 0, j]  > 0) <= 1 |
                      sum(W[A == 0, j] == 0) <= 1) {stop("Skip")}
                  fit_q(SL.library = c("SL.mean", "SL.glm.binom"),
-                       subset_id = c(A == 0))},
+                       subset_id = c(A == 0),
+                       method = "method.NNLS")},
                 error = function(e3) {
                   # Attempt 4:
                   # if all else fails, take the full-data empirical mean
