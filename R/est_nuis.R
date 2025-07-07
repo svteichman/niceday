@@ -71,7 +71,7 @@ est_nuis <- function(W,
       samp_subset_comp <- 1:n %in% sort(unname(unlist(fold_list[-k])))
     }
 
-    fit_pi <- function(SL.library, subset_id) {
+    fit_pi <- function(SL.library, subset_id, method) {
       #suppressMessages(
         withCallingHandlers(expr = {
           out <- c(SuperLearner(Y = A[subset_id],
@@ -79,7 +79,7 @@ est_nuis <- function(W,
                                       nm = paste0("X", 1:ncol(X))),
                          newX = setNames(object = data.frame(X),
                                          nm = paste0("X", 1:ncol(X))),
-                         method = method.NNloglik,
+                         method = method,
                          family = binomial(link = "logit"),
                          SL.library = SL.library,
                          cvControl = list(V = min(num_crossval_folds,
@@ -99,21 +99,24 @@ est_nuis <- function(W,
       # try to fit cross-fitted, user-specified SuperLearner models
       {flag_pi <<- 1 # ; cat("Attempt 1\n")
        fit_pi(SL.library = sl.lib.pi,
-              subset_id = samp_subset_comp)},
+              subset_id = samp_subset_comp,
+              method = "method.NNloglik")},
       error = function(e1) {
         tryCatch(
           # Attempt 2:
           # try to fit cross-fitted intercept and GLM SuperLearner models
           {flag_pi <<- 2 # ; cat("Attempt 2\n")
            fit_pi(SL.library = c("SL.mean", "SL.glm.binom"),
-                  subset_id = samp_subset_comp)},
+                  subset_id = samp_subset_comp,
+                  method = "method.NNloglik")},
           error = function(e2) {
             tryCatch(
               # Attempt 3:
               # try to fit full-data intercept and GLM SuperLearner models
               {flag_pi <<- 3 # ; cat("Attempt 3\n")
                fit_pi(SL.library = c("SL.mean", "SL.glm.binom"),
-                      subset_id = rep(TRUE, n))},
+                      subset_id = rep(TRUE, n),
+                      method = "method.NNloglik")},
               error = function(e3) {
                 # Attempt 4:
                 # if all else fails, take the full-data empirical mean
