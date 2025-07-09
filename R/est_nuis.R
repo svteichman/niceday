@@ -5,7 +5,7 @@ est_nuis <- function(W,
                      X,
                      num_crossfit_folds = 10,
                      num_crossval_folds = 10,
-                     gtrunc = 0.01,
+                     gtrunc = min(0.05, 5 / sqrt(NROW(W)) / log(NROW(W))),
                      sl.lib.pi = c("SL.mean",
                                    "SL.lm",
                                    "SL.glm.binom",
@@ -55,12 +55,16 @@ est_nuis <- function(W,
                                  list(paste0("fold", 1:nfold))))
   check_q0 <- check_q1 <- check_m0 <- check_m1
 
-  if(verbose %in% c(TRUE, "development")){cat("Beginning propensity score estimation\n")}
-
   ##################################
   ### Estimate propensity score: ###
   ###  P(A=1|X)                  ###
   ##################################
+
+  if (verbose %in% c(TRUE, "development")) {
+    cat("Beginning propensity score estimation\n")
+    pb_id <- 0
+    pb <- txtProgressBar(min = 0, max = nfold, style = 3)
+  }
 
   for (k in 1:nfold) {
     # identify which samples are used to estimate the propensity score
@@ -132,7 +136,15 @@ est_nuis <- function(W,
     # save the results
     mat_pi[1:n, 1, k] <- pmin(pmax(est_pi, gtrunc), 1 - gtrunc)
     check_pi[k] <- flag_pi
+
+    # update progress bar
+    if (verbose %in% c(TRUE, "development")) {
+      pb_id <- pb_id + 1
+      setTxtProgressBar(pb, pb_id)
+    }
   }
+
+  cat("\n")
 
   ######################################
   ### Estimate conditional mean:     ###
@@ -141,7 +153,8 @@ est_nuis <- function(W,
 
   if (verbose %in% c(TRUE, "development")) {
     cat("Beginning conditional mean estimation\n")
-    pb <- txtProgressBar(min = 0, max = J, style = 3)
+    pb_id <- 0
+    pb <- txtProgressBar(min = 0, max = nfold * J, style = 3)
   }
 
   for (j in 1:J) {
@@ -383,7 +396,8 @@ est_nuis <- function(W,
 
     # update progress bar
     if (verbose %in% c(TRUE, "development")) {
-      setTxtProgressBar(pb, j)
+      pb_id <- pb_id + 1
+      setTxtProgressBar(pb, pb_id)
     }
   }
 
