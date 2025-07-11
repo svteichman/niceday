@@ -342,5 +342,5 @@ est_psi_ABCD <- function(W,
                            if_log_AIPW_tmle = if_log_AIPW_tmle,
                            if_g_log_AIPW_tmle = if_g_log_AIPW_tmle),
               Sigmahat = list(Sigmahat_log_AIPW = Sigmahat_log_AIPW,
-                              Sigmahat_g_log_AIPW = Sigmahat_g_log_AIPW))
+                              Sigmahat_g_log_AIPW = Sigmahat_g_log_AIPW)))
 }
