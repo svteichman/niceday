@@ -93,10 +93,9 @@ ndFit <- function(W, # matrix of responses
   psi_hat_ABC_simp <- est
 
   # estimate variance of estimator
-  covhat_est <- (cov_W_A1 / (E_W_A1 %*% t(E_W_A1)) / P_A1 +
-                   cov_W_A0 / (E_W_A0 %*% t(E_W_A0)) / P_A0)
-  corrhat_est <- covhat_est /
-    (sqrt(diag(covhat_est)) %*% t(sqrt(diag(covhat_est))))
+  covhat_est <- (diag(1 / E_W_A1) %*% cov_W_A1 %*% diag(1 / E_W_A1) / P_A1 +
+                   diag(1 / E_W_A0) %*% cov_W_A0 %*% diag(1 / E_W_A0) / P_A0)
+  corrhat_est <- cov2cor(covhat_est)
 
   # standard error
   se_hat_psi_hat_ABC_simp <- sqrt(diag(covhat_est) / n)
@@ -128,9 +127,8 @@ ndFit <- function(W, # matrix of responses
 
   # estimate covariance of estimates
   grad_h_mat <- t(diag(1, length(grad_g_plugin)) - grad_g_plugin)
-  Sigmahat_g <- t(grad_h_mat) %*% covhat_est %*% grad_h_mat
-  corrhat_g <- Sigmahat_g /
-    (sqrt(diag(Sigmahat_g)) %*% t(sqrt(diag(Sigmahat_g))))
+  Sigmahat_g <- grad_h_mat %*% covhat_est %*% t(grad_h_mat)
+  corrhat_g <- cov2cor(Sigmahat_g)
 
   # standard error
   se_hat_psi_hat_ABC_g_simp <- sqrt(diag(Sigmahat_g) / n)
