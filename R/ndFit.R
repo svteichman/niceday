@@ -93,12 +93,12 @@ ndFit <- function(W, # matrix of responses
   psi_hat_ABC_simp <- est
 
   # estimate variance of estimator
-  covhat_est <- (diag(1 / E_W_A1) %*% cov_W_A1 %*% diag(1 / E_W_A1) / P_A1 +
+  Sigmahat <- (diag(1 / E_W_A1) %*% cov_W_A1 %*% diag(1 / E_W_A1) / P_A1 +
                    diag(1 / E_W_A0) %*% cov_W_A0 %*% diag(1 / E_W_A0) / P_A0)
-  corrhat_est <- cov2cor(covhat_est)
+  corrhat_est <- cov2cor(Sigmahat)
 
   # standard error
-  se_hat_psi_hat_ABC_simp <- sqrt(diag(covhat_est) / n)
+  se_hat_psi_hat_ABC_simp <- sqrt(diag(Sigmahat) / n)
 
   lower_log_noadj_marg <- psi_hat_ABC_simp - qnorm(1 - alpha / 2) * se_hat_psi_hat_ABC_simp
   upper_log_noadj_marg <- psi_hat_ABC_simp + qnorm(1 - alpha / 2) * se_hat_psi_hat_ABC_simp
@@ -127,7 +127,7 @@ ndFit <- function(W, # matrix of responses
 
   # estimate covariance of estimates
   grad_h_mat <- t(diag(1, length(grad_g_plugin)) - grad_g_plugin)
-  Sigmahat_g <- grad_h_mat %*% covhat_est %*% t(grad_h_mat)
+  Sigmahat_g <- grad_h_mat %*% Sigmahat %*% t(grad_h_mat)
   corrhat_g <- cov2cor(Sigmahat_g)
 
   # standard error
@@ -197,6 +197,9 @@ ndFit <- function(W, # matrix of responses
                              uniform_CI = uniform_CI,
                              verbose = verbose)
 
+    Sigmahat_log_AIPW <- psi_ABCD$Sigmahat$Sigmahat_log_AIPW
+    Sigmahat_g_log_AIPW <- 
+    
     results_adjust <- list(ABCD = data.frame(taxon = 1:J,
                                              est = psi_ABCD$res$est,
                                              se = psi_ABCD$res$se,
@@ -225,7 +228,11 @@ ndFit <- function(W, # matrix of responses
   results <- list(noadjust = results_simple,
                   adjust = results_adjust,
                   nuis = nuis,
-                  cf_nuis = cf_nuis)
+                  cf_nuis = cf_nuis,
+                  variance = list(noadjust = list("Sigmahat" = Sigmahat,
+                                                  "Sigmahat_g" = Sigmahat_g),
+                                  adjust = list("Sigmahat" = psi_ABCD$Sigmahat$Sigmahat_log_AIPW,
+                                                "Sigmahat_g" = psi_ABCD$Sigmahat$Sigmahat_g_log_AIPW)))
 
   return(results)
 }
