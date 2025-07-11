@@ -196,9 +196,6 @@ ndFit <- function(W, # matrix of responses
                              d = d,
                              uniform_CI = uniform_CI,
                              verbose = verbose)
-
-    Sigmahat_log_AIPW <- psi_ABCD$Sigmahat$Sigmahat_log_AIPW
-    Sigmahat_g_log_AIPW <- 
     
     results_adjust <- list(ABCD = data.frame(taxon = 1:J,
                                              est = psi_ABCD$res$est,
