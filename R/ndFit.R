@@ -103,6 +103,23 @@ ndFit <- function(W, # matrix of responses
   lower_log_noadj_marg <- psi_hat_ABC_simp - qnorm(1 - alpha / 2) * se_hat_psi_hat_ABC_simp
   upper_log_noadj_marg <- psi_hat_ABC_simp + qnorm(1 - alpha / 2) * se_hat_psi_hat_ABC_simp
 
+  # OPTIONAL: alternative code for estimating upper-alpha quantile for simultaneous coverage
+  # 
+  # root <- uniroot(f =
+  #                   function(t) {
+  #                     mvtnorm::pmvnorm(lower = rep(-t, J),
+  #                                      upper = rep(t, J),
+  #                                      mean = rep(0, J),
+  #                                      sigma = corrhat_est,
+  #                                      algorithm = GenzBretz(maxpts = 100, abseps = 0.001))[1] - 0.951
+  #                   },
+  #                 interval = c(0.95 * qnorm(1 - alpha / 2),
+  #                              1.05 * qnorm(1 - alpha / 2 / J)),
+  #                 tol = 0.01)
+  # (critical_value <- min(max(root$root + root$estim.prec,
+  #                            qnorm(1 - alpha / 2)),
+  #                        qnorm(1 - alpha / 2 / J)))
+  
   if (uniform_CI) {
     q <- quantile(apply(MASS::mvrnorm(n = 1e5, mu = rep(0, J),
                                       Sigma = corrhat_est),
