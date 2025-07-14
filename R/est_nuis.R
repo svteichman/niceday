@@ -90,6 +90,7 @@ est_nuis <- function(W,
                                                   sum(A[subset_id] == 0),
                                                   sum(A[subset_id] == 1)),
                                           stratifyCV = TRUE))$SL.predict)
+          if (all(out == 0) | all(out == 1)) {stop("Estimates cannot all be zero or one.")}
         }, warning = function(w) {
           if (allow_warnings) {invokeRestart("muffleWarning")} else {stop(conditionMessage(w))}
         })
@@ -120,7 +121,7 @@ est_nuis <- function(W,
               {flag_pi <<- 3 # ; cat("Attempt 3\n")
                fit_pi(SL.library = c("SL.mean", "SL.glm.binom"),
                       subset_id = rep(TRUE, n),
-                      method = "method.NNloglik")},
+                      method = "method.NNLS")},
               error = function(e3) {
                 # Attempt 4:
                 # if all else fails, take the full-data empirical mean
@@ -180,7 +181,7 @@ est_nuis <- function(W,
                            SL.library = SL.library,
                            cvControl = list(V = min(num_crossval_folds,
                                                     sum(subset_id))))$SL.predict)
-            if (all(out) == 0) {stop("Estimates cannot all be zero.")}
+            if (all(out == 0)) {stop("Estimates cannot all be zero.")}
           }, warning = function(w) {
             if (allow_warnings) {invokeRestart("muffleWarning")} else {stop(conditionMessage(w))}
           })
@@ -204,7 +205,7 @@ est_nuis <- function(W,
                                                     sum(W[subset_id, j] > 0),
                                                     sum(W[subset_id, j] == 0)),
                                             stratifyCV = TRUE))$SL.predict)
-            if (all(out) == 0) {stop("Estimates cannot all be zero.")}
+            if (all(out == 0)) {stop("Estimates cannot all be zero.")}
           }, warning = function(w) {
             if (allow_warnings) {invokeRestart("muffleWarning")} else {stop(conditionMessage(w))}
           })
