@@ -1,7 +1,7 @@
 #' @export
 
-# implement Generalized Additive Model (GAM) under quasi-Poisson family
-SL.gam.qpois <- function (Y, X, newX, family, obsWeights, deg.gam = 2, cts.num = 4,
+# implement Generalized Additive Model (GAM) under binomial family
+SL.gam.binom <- function (Y, X, newX, family, obsWeights, deg.gam = 2, cts.num = 4,
                           ...) {
   if (!requireNamespace("gam")) {
     stop("SL.gam.qpois requires the gam package, but it isn't available")
@@ -22,7 +22,7 @@ SL.gam.qpois <- function (Y, X, newX, family, obsWeights, deg.gam = 2, cts.num =
     gam.model <- as.formula(paste("Y~", paste(colnames(X),
                                               collapse = "+"), sep = ""))
   }
-  fit.gam <- gam::gam(gam.model, data = data.frame(Y, X), family = quasipoisson,
+  fit.gam <- gam::gam(gam.model, data = data.frame(Y, X), family = binomial(link = "logit"),
                       control = gam::gam.control(maxit = 50, bf.maxit = 50),
                       weights = obsWeights)
   if (packageVersion("gam") >= "1.15") {

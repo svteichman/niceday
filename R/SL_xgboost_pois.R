@@ -2,8 +2,8 @@
 
 # implement Tweedie (essentially Poisson) xgboost
 SL.xgboost.pois <- function (Y, X, newX, family, obsWeights, id, nrounds = 50, params = list(),
-                         max_depth = 5, min_child_weight = 6, eta = 0.1,
-                         nthread = 1, verbose = 0, save_period = NULL, ...) {
+                             max_depth = 5, min_child_weight = 6, eta = 0.1,
+                             nthread = 1, verbose = 0, save_period = NULL, ...) {
   require("xgboost")
   if (packageVersion("xgboost") < "0.6") {
     stop("SL.xgboost requires xgboost version >= 0.6, try help('SL.xgboost') for details")

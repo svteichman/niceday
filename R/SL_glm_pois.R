@@ -1,7 +1,7 @@
 #' @export
 
-# re-implement quasi-poisson GLM with more iterations and larger epsilon
-SL.glm.qpois <- function (Y, X, newX, family, obsWeights, model = TRUE, ...) {
+# re-implement poisson GLM with more iterations and larger epsilon
+SL.glm.pois <- function (Y, X, newX, family, obsWeights, model = TRUE, ...) {
   if (is.matrix(X)) {
     X = as.data.frame(X)
   }
@@ -13,7 +13,7 @@ SL.glm.qpois <- function (Y, X, newX, family, obsWeights, model = TRUE, ...) {
   }
   pred <- predict(fit.glm, newdata = newX, type = "response")
   fit <- list(object = fit.glm)
-  class(fit) <- "SL.glm.qpois"
+  class(fit) <- "SL.glm.pois"
   out <- list(pred = pred, fit = fit)
   return(out)
 }
