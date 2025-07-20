@@ -7,17 +7,17 @@ est_nuis <- function(W,
                      num_crossval_folds = 10,
                      gtrunc = min(0.05, 5 / sqrt(NROW(W)) / log(NROW(W))),
                      sl.lib.pi = c("SL.mean",
-                                   "SL.lm",
                                    "SL.glm.binom",
-                                   "SL.xgboost.binom"),
+                                   "SL.glmnet.binom",
+                                   "SL.gam.binom"),
                      sl.lib.m = c("SL.mean",
-                                  "SL.lm",
-                                  "SL.glm.qpois",
-                                  "SL.xgboost.pois"),
+                                  "SL.glm.pois",
+                                  "SL.glmnet.pois",
+                                  "SL.gam.pois"),
                      sl.lib.q = sl.lib.pi,
                      allow_warnings = TRUE,
                      enforce_pos_reg = FALSE,
-                     verbose = FALSE) {
+                     verbose = TRUE) {
   require("SuperLearner")
 
   n <- nrow(W)
@@ -41,6 +41,10 @@ est_nuis <- function(W,
                  dimnames = c(list(paste0("samp", 1:n)),
                               list("notax"),
                               list(paste0("fold", 1:nfold))))
+  weights_pi <- array(NA,
+                      dim = list(length(sl.lib.pi), nfold),
+                      dimnames = c(list(sl.lib.pi),
+                                   list(paste0("fold", 1:nfold))))
   check_pi <- rep(NA, nfold)
 
   mat_m1 <- array(NA,
@@ -49,12 +53,24 @@ est_nuis <- function(W,
                                 list(paste0("tax", 1:J)),
                                 list(paste0("fold", 1:nfold))))
   mat_q0 <- mat_q1 <- mat_m0 <- mat_m1
+  weights_m1 <- array(NA,
+                      dim = list(J, length(sl.lib.m), nfold),
+                      dimnames = c(list(paste0("tax", 1:J)),
+                                   list(sl.lib.m),
+                                   list(paste0("fold", 1:nfold))))
+  weights_m0 <- weights_m1
+  weights_q1 <- array(NA,
+                      dim = list(J, length(sl.lib.q), nfold),
+                      dimnames = c(list(paste0("tax", 1:J)),
+                                   list(sl.lib.q),
+                                   list(paste0("fold", 1:nfold))))
+  weights_q0 <- weights_q1
   check_m1 <- array(NA,
                     dim = list(J, nfold),
                     dimnames = c(list(paste0("tax", 1:J)),
                                  list(paste0("fold", 1:nfold))))
   check_q0 <- check_q1 <- check_m0 <- check_m1
-
+  
   ##################################
   ### Estimate propensity score: ###
   ###  P(A=1|X)                  ###
@@ -78,24 +94,32 @@ est_nuis <- function(W,
     fit_pi <- function(SL.library, subset_id, method) {
       #suppressMessages(
         withCallingHandlers(expr = {
-          out <- c(SuperLearner(Y = A[subset_id],
-                         X = setNames(object = data.frame(X[subset_id, , drop = FALSE]),
-                                      nm = paste0("X", 1:ncol(X))),
-                         newX = setNames(object = data.frame(X),
-                                         nm = paste0("X", 1:ncol(X))),
-                         method = method,
-                         family = binomial(link = "logit"),
-                         SL.library = SL.library,
-                         cvControl = list(V = min(num_crossval_folds,
-                                                  sum(A[subset_id] == 0),
-                                                  sum(A[subset_id] == 1)),
-                                          stratifyCV = TRUE))$SL.predict)
-          if (all(out == 0) | all(out == 1)) {stop("Estimates cannot all be zero or one.")}
+          
+          fit <- SuperLearner(Y = A[subset_id],
+                              X = setNames(object = data.frame(X[subset_id, , drop = FALSE]),
+                                           nm = paste0("X", 1:ncol(X))),
+                              newX = setNames(object = data.frame(X),
+                                              nm = paste0("X", 1:ncol(X))),
+                              method = method,
+                              family = binomial(link = "logit"),
+                              SL.library = SL.library,
+                              cvControl = list(V = min(num_crossval_folds,
+                                                       sum(A[subset_id] == 0),
+                                                       sum(A[subset_id] == 1)),
+                                               stratifyCV = TRUE))
+          pred <- c(fit$SL.predict)
+          weights <- c(fit$coef)
+          # # FUTURE OPTION: implement discrete SuperLearner
+          # weight <- rep(0L, length(risk_vec))
+          # weight[which.min(fit$coef)] <- 1L
+          # pred <- c(fit$library.predict %*% weight)
+          if (all(pred == 0) | all(pred == 1)) {stop("Estimates cannot all be zero or one.")}
         }, warning = function(w) {
           if (allow_warnings) {invokeRestart("muffleWarning")} else {stop(conditionMessage(w))}
         })
       #)
-      return(out)
+      return(list(pred = pred,
+                  weights = weights))
     }
 
     # use fall-back learners if SuperLearner fails
@@ -105,7 +129,8 @@ est_nuis <- function(W,
       {flag_pi <<- 1 # ; cat("Attempt 1\n")
        fit_pi(SL.library = sl.lib.pi,
               subset_id = samp_subset_comp,
-              method = "method.NNloglik")},
+              method = "method.NNloglik")
+       },
       error = function(e1) {
         tryCatch(
           # Attempt 2:
@@ -135,8 +160,9 @@ est_nuis <- function(W,
     )
 
     # save the results
-    mat_pi[1:n, 1, k] <- pmin(pmax(est_pi, gtrunc), 1 - gtrunc)
+    mat_pi[1:n, 1, k] <- pmin(pmax(est_pi$pred, gtrunc), 1 - gtrunc)
     check_pi[k] <- flag_pi
+    if (flag_pi == 1) {weights_pi[, k] <- est_pi$weights}
 
     # update progress bar
     if (verbose %in% c(TRUE, "development")) {
@@ -171,46 +197,52 @@ est_nuis <- function(W,
       fit_m <- function(SL.library, subset_id, method) {
         #suppressMessages(
           withCallingHandlers(expr = {
-            out <- c(SuperLearner(Y = W[subset_id, j, drop = TRUE],
-                           X = setNames(object = data.frame(X[subset_id, , drop = FALSE]),
-                                        nm = paste0("X", 1:ncol(X))),
-                           newX = setNames(object = data.frame(X),
-                                           nm = paste0("X", 1:ncol(X))),
-                           method = method,
-                           family = gaussian(link = "identity"),
-                           SL.library = SL.library,
-                           cvControl = list(V = min(num_crossval_folds,
-                                                    sum(subset_id))))$SL.predict)
-            if (all(out == 0)) {stop("Estimates cannot all be zero.")}
+            fit <- SuperLearner(Y = W[subset_id, j, drop = TRUE],
+                                X = setNames(object = data.frame(X[subset_id, , drop = FALSE]),
+                                             nm = paste0("X", 1:ncol(X))),
+                                newX = setNames(object = data.frame(X),
+                                                nm = paste0("X", 1:ncol(X))),
+                                method = method,
+                                family = gaussian(link = "identity"),
+                                SL.library = SL.library,
+                                cvControl = list(V = min(num_crossval_folds,
+                                                         sum(subset_id))))
+            pred <- c(fit$SL.predict)
+            weights <- c(fit$coef)
+            if (all(pred == 0)) {stop("Estimates cannot all be zero.")}
           }, warning = function(w) {
             if (allow_warnings) {invokeRestart("muffleWarning")} else {stop(conditionMessage(w))}
           })
         #)
-        return(out)
+        return(list(pred = pred,
+                    weights = weights))
       }
 
       # for each taxon j, estimate P(W_j>0|A=1,X)
       fit_q <- function(SL.library, subset_id, method) {
         #suppressMessages(
           withCallingHandlers(expr = {
-            out <- c(SuperLearner(Y = ifelse(W[subset_id, j] > 0, 1, 0),
-                           X = setNames(object = data.frame(X[subset_id, , drop = FALSE]),
-                                        nm = paste0("X", 1:ncol(X))),
-                           newX = setNames(object = data.frame(X),
-                                           nm = paste0("X", 1:ncol(X))),
-                           method = method,
-                           family = binomial(link = "logit"),
-                           SL.library = SL.library,
-                           cvControl = list(V = min(num_crossval_folds,
-                                                    sum(W[subset_id, j] > 0),
-                                                    sum(W[subset_id, j] == 0)),
-                                            stratifyCV = TRUE))$SL.predict)
-            if (all(out == 0)) {stop("Estimates cannot all be zero.")}
+            fit <- SuperLearner(Y = ifelse(W[subset_id, j] > 0, 1, 0),
+                                X = setNames(object = data.frame(X[subset_id, , drop = FALSE]),
+                                             nm = paste0("X", 1:ncol(X))),
+                                newX = setNames(object = data.frame(X),
+                                                nm = paste0("X", 1:ncol(X))),
+                                method = method,
+                                family = binomial(link = "logit"),
+                                SL.library = SL.library,
+                                cvControl = list(V = min(num_crossval_folds,
+                                                         sum(W[subset_id, j] > 0),
+                                                         sum(W[subset_id, j] == 0)),
+                                                 stratifyCV = TRUE))
+            pred <- c(fit$SL.predict)
+            weights <- c(fit$coef)
+            if (all(pred == 0)) {stop("Estimates cannot all be zero.")}
           }, warning = function(w) {
             if (allow_warnings) {invokeRestart("muffleWarning")} else {stop(conditionMessage(w))}
           })
         #)
-        return(out)
+        return(list(pred = pred,
+                    weights = weights))
       }
 
       # for each taxon j, estimate E[W_j|W_j>0,A=1,X]
@@ -228,7 +260,7 @@ est_nuis <- function(W,
             # try to fit cross-fitted intercept and GLM SuperLearner models
             {flag_m1 <<- 2 # ; cat("Attempt 2\n")
              if (length(unique(W[samp_subset_comp & A == 1 & W[, j] > 0, j])) <= 1) {stop("Skip")}
-             fit_m(SL.library = c("SL.mean", "SL.glm.qpois"),
+             fit_m(SL.library = c("SL.mean", "SL.glm.pois"),
                    subset_id = samp_subset_comp & A == 1 & W[, j] > 0,
                    method = "method.NNLS")},
             error = function(e2) {
@@ -237,7 +269,7 @@ est_nuis <- function(W,
                 # try to fit full-data intercept and GLM SuperLearner models
                 {flag_m1 <<- 3 # ; cat("Attempt 3\n")
                  if (length(unique(W[A == 1 & W[, j] > 0, j])) <= 1) {stop("Skip")}
-                 fit_m(SL.library = c("SL.mean", "SL.glm.qpois"),
+                 fit_m(SL.library = c("SL.mean", "SL.glm.pois"),
                        subset_id = c(A == 1 & W[, j] > 0),
                        method = "method.NNLS")},
                  error = function(e3) {
@@ -267,7 +299,7 @@ est_nuis <- function(W,
             # try to fit cross-fitted intercept and GLM SuperLearner models
             {flag_m0 <<- 2 # ; cat("Attempt 2\n")
              if (length(unique(W[samp_subset_comp & A == 0 & W[, j] > 0, j])) <= 1) {stop("Skip")}
-             fit_m(SL.library = c("SL.mean", "SL.glm.qpois"),
+             fit_m(SL.library = c("SL.mean", "SL.glm.pois"),
                    subset_id = samp_subset_comp & A == 0 & W[, j] > 0,
                    method = "method.NNLS")},
             error = function(e2) {
@@ -276,7 +308,7 @@ est_nuis <- function(W,
                 # try to fit full-data intercept and GLM SuperLearner models
                 {flag_m0 <<- 3 # ; cat("Attempt 3\n")
                  if (length(unique(W[A == 0 & W[, j] > 0, j])) <= 1) {stop("Skip")}
-                 fit_m(SL.library = c("SL.mean", "SL.glm.qpois"),
+                 fit_m(SL.library = c("SL.mean", "SL.glm.pois"),
                        subset_id = c(A == 0 & W[, j] > 0),
                        method = "method.NNLS")},
                 error = function(e3) {
@@ -375,30 +407,28 @@ est_nuis <- function(W,
         }
       )
 
-      # perform truncation to avoid numerical instability
-      est_m1 <- pmin(pmax(est_m1, 0), 1.5 * max(W[A == 1, j]))
-      est_m0 <- pmin(pmax(est_m0, 0), 1.5 * max(W[A == 0, j]))
-      est_q1 <- pmin(pmax(est_q1, 0), 1)
-      est_q0 <- pmin(pmax(est_q0, 0), 1)
-
       # save estimates
-      mat_m1[1:n, j, k] <- as.numeric(est_m1)
+      mat_m1[1:n, j, k] <- pmin(pmax(est_m1$pred, 0), 1.5 * max(W[A == 1, j]))
       check_m1[j, k] <- flag_m1
-
-      mat_q1[1:n, j, k] <- as.numeric(est_q1)
+      if (flag_m1 == 1) {weights_m1[j, , k] <- est_m1$weights}
+      
+      mat_q1[1:n, j, k] <- pmin(pmax(est_q1$pred, 0), 1)
       check_q1[j, k] <- flag_q1
+      if (flag_q1 == 1) {weights_q1[j, , k] <- est_q1$weights}
 
-      mat_m0[1:n, j, k] <- as.numeric(est_m0)
+      mat_m0[1:n, j, k] <- pmin(pmax(est_m0$pred, 0), 1.5 * max(W[A == 0, j]))
       check_m0[j, k] <- flag_m0
+      if (flag_m0 == 1) {weights_m0[j, , k] <- est_m0$weights}
 
-      mat_q0[1:n, j, k] <- as.numeric(est_q0)
+      mat_q0[1:n, j, k] <- pmin(pmax(est_q0$pred, 0), 1)
       check_q0[j, k] <- flag_q0
-    }
-
-    # update progress bar
-    if (verbose %in% c(TRUE, "development")) {
-      pb_id <- pb_id + 1
-      setTxtProgressBar(pb, pb_id)
+      if (flag_q0 == 1) {weights_q0[j, , k] <- est_q0$weights}
+      
+      # update progress bar
+      if (verbose %in% c(TRUE, "development")) {
+        pb_id <- pb_id + 1
+        setTxtProgressBar(pb, pb_id)
+      }
     }
   }
 
@@ -414,7 +444,12 @@ est_nuis <- function(W,
                              check_m0 = check_m0,
                              check_m1 = check_m1,
                              check_q0 = check_q0,
-                             check_q1 = check_q1))
+                             check_q1 = check_q1),
+               weights = list(weights_pi = weights_pi,
+                              weights_m0 = weights_m0,
+                              weights_m1 = weights_m1,
+                              weights_q0 = weights_q0,
+                              weights_q1 = weights_q1))
 
   # warn user about important issues that may arise with nuisance estimates
   if (any(is.na(mat_pi)) > 0) {
