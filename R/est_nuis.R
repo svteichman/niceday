@@ -153,7 +153,7 @@ est_nuis <- function(W,
                 # Attempt 4:
                 # if all else fails, take the full-data empirical mean
                 {flag_pi <<- 4 # ; cat("Attempt 4\n")
-                 rep(mean(A == 1), n)}
+                 data.frame(pred = rep(mean(A == 1), n))}
               }
             )
           }
@@ -278,7 +278,7 @@ est_nuis <- function(W,
                   # Attempt 4:
                   # if all else fails, take the full-data empirical mean
                   {flag_m1 <<- 4 # ; cat("Attempt 4\n")
-                   rep(mean(W[A == 1 & W[, j] > 0, j]), n)}
+                   data.frame(pred = rep(mean(W[A == 1 & W[, j] > 0, j]), n))}
                 }
               )
             }
@@ -317,7 +317,7 @@ est_nuis <- function(W,
                   # Attempt 4:
                   # if all else fails, take the full-data empirical mean
                   {flag_m0 <<- 4 # ; cat("Attempt 4\n")
-                   rep(mean(W[A == 0 & W[, j] > 0, j]), n)}
+                   data.frame(pred = rep(mean(W[A == 0 & W[, j] > 0, j]), n))}
                 }
               )
             }
@@ -359,7 +359,7 @@ est_nuis <- function(W,
                   # Attempt 4:
                   # if all else fails, take the full-data empirical mean
                   {flag_q1 <<- 4 # ; cat("Attempt 4\n")
-                   rep(mean(W[A == 1, j] > 0), n)}
+                   data.frame(pred = rep(mean(W[A == 1, j] > 0), n))}
                 }
               )
             }
@@ -401,7 +401,7 @@ est_nuis <- function(W,
                   # Attempt 4:
                   # if all else fails, take the full-data empirical mean
                   {flag_q0 <<- 4 # ; cat("Attempt 4\n")
-                   rep(mean(W[A == 0, j] > 0), n)}
+                   data.frame(pred = rep(mean(W[A == 0, j] > 0), n))}
                 }
               )
             }
