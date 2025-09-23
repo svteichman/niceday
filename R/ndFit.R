@@ -1,24 +1,42 @@
+#' Fit niceday model
+#'
+#' @param W Matrix of multivariate outcome variables.
+#' @param A Binary covariate of interest.
+#' @param X Matrix of covariates to adjust for.
+#' @param alpha Desired asymptotic type I error rate. Default is `0.05`.
+#' @param uniform_CI ?? Default is `TRUE`.
+#' @param d Parameter for smoothed median centering. Default is `0.1`.
+#' @param gtrunc ?? Default is `0.01`.
+#' @param bs_rep Number of replicates for bootstrap sampling of uniform confidence intervals. Default is `1e5`.
+#' @param num_crossval_folds Number of folds for cross-validation. Default is `10`.
+#' @param num_crossfit_folds Number of folds for cross-fitting. Default is `10`.
+#' @param enforce_pos_reg Should estimates of \eqn{E[W_j|A=a,X]} to forced to be strictly positive? Default is `FALSE`.
+#' @param sl.lib.pi Libraries used to estimate ???. Default is `c("SL.mean", "SL.lm", "SL.glm.binom", "SL.xgboost.binom")`.
+#' @param sl.lib.m Libraries used to estimate ???. Default is `c("SL.mean", "SL.lm", "SL.glm.qpois", "SL.xgboost.pois")`.
+#' @param sl.lib.q Libraries used to estimate ???. Default is the input to `sl.lib.pi`.
+#' @param adjust_covariates Should covariates be adjusted for in the estimator? Default is `TRUE`.
+#' @param nuis ??. Default is `NULL`.
+#' @param verbose Do you want to receive updates as this function runs? Default is `FALSE`.
+#' @param cross_fit Should cross-fitting be run? Default is `TRUE`.
+#'
+#' @return A list containing elements `noadjust`, `adjust`, `nuis`, `cf_nuis`, and `variance`. `noadjust` gives unadjusted parameter estimates.
+#' `adjust` gives covariate adjusted parameter estimates. `nuis` gives estimates of nuisance parameters. Add a description of the rest here!
+#'
+#' @examples
+#' # add example here!
+#'
 #' @export
-
-ndFit <- function(W, # matrix of responses
-                  A, # binary case/control covariate
-                  X, # matrix of covariates for adjustment
-
-                  alpha = 0.05, # asymptotic type-I error control
-
+ndFit <- function(W,
+                  A,
+                  X,
+                  alpha = 0.05,
                   uniform_CI = TRUE,
-
-                  d = 0.1, # parameter for 'smooth median' centering
-
+                  d = 0.1,
                   gtrunc = 0.01,
-
-                  bs_rep = 1e5, # number of replicates for bootstrap sampling of uniform confidence intervals
-
+                  bs_rep = 1e5,
                   num_crossval_folds = 10,
                   num_crossfit_folds = 10,
-
-                  enforce_pos_reg = FALSE, # force estimates of E[W_j|A=a,X] to be strictly positive
-
+                  enforce_pos_reg = FALSE,
                   sl.lib.pi = c("SL.mean",
                                 "SL.lm",
                                 "SL.glm.binom",
@@ -27,15 +45,10 @@ ndFit <- function(W, # matrix of responses
                                "SL.lm",
                                "SL.glm.qpois",
                                "SL.xgboost.pois"),
-
                   sl.lib.q = sl.lib.pi,
-
                   adjust_covariates = TRUE,
-
                   nuis = NULL,
-
                   verbose = FALSE,
-
                   cross_fit = TRUE) {
 
   # perform checks to ensure valid data input
@@ -95,16 +108,16 @@ ndFit <- function(W, # matrix of responses
   # estimate variance of estimator
   Sigmahat <- (diag(1 / E_W_A1) %*% cov_W_A1 %*% diag(1 / E_W_A1) / P_A1 +
                    diag(1 / E_W_A0) %*% cov_W_A0 %*% diag(1 / E_W_A0) / P_A0)
-  corrhat_est <- cov2cor(Sigmahat)
+  corrhat_est <- stats::cov2cor(Sigmahat)
 
   # standard error
   se_hat_psi_hat_ABC_simp <- sqrt(diag(Sigmahat) / n)
 
-  lower_log_noadj_marg <- psi_hat_ABC_simp - qnorm(1 - alpha / 2) * se_hat_psi_hat_ABC_simp
-  upper_log_noadj_marg <- psi_hat_ABC_simp + qnorm(1 - alpha / 2) * se_hat_psi_hat_ABC_simp
+  lower_log_noadj_marg <- psi_hat_ABC_simp - stats::qnorm(1 - alpha / 2) * se_hat_psi_hat_ABC_simp
+  upper_log_noadj_marg <- psi_hat_ABC_simp + stats::qnorm(1 - alpha / 2) * se_hat_psi_hat_ABC_simp
 
   # OPTIONAL: alternative code for estimating upper-alpha quantile for simultaneous coverage
-  # 
+  #
   # root <- uniroot(f =
   #                   function(t) {
   #                     mvtnorm::pmvnorm(lower = rep(-t, J),
@@ -113,19 +126,19 @@ ndFit <- function(W, # matrix of responses
   #                                      sigma = corrhat_est,
   #                                      algorithm = GenzBretz(maxpts = 100, abseps = 0.001))[1] - 0.951
   #                   },
-  #                 interval = c(0.95 * qnorm(1 - alpha / 2),
-  #                              1.05 * qnorm(1 - alpha / 2 / J)),
+  #                 interval = c(0.95 * stats::qnorm(1 - alpha / 2),
+  #                              1.05 * stats::qnorm(1 - alpha / 2 / J)),
   #                 tol = 0.01)
   # (critical_value <- min(max(root$root + root$estim.prec,
-  #                            qnorm(1 - alpha / 2)),
-  #                        qnorm(1 - alpha / 2 / J)))
-  
+  #                            stats::qnorm(1 - alpha / 2)),
+  #                        stats::qnorm(1 - alpha / 2 / J)))
+
   if (uniform_CI) {
-    q <- quantile(apply(MASS::mvrnorm(n = 1e5, mu = rep(0, J),
+    q <- stats::quantile(apply(MASS::mvrnorm(n = 1e5, mu = rep(0, J),
                                       Sigma = corrhat_est),
                         1,
                         function(r){max(abs(r))}), 1 - alpha)
-    cimult <- pmin(pmax(q, qnorm(1 - alpha / 2)), qnorm(1 - alpha / 2 / J))
+    cimult <- pmin(pmax(q, stats::qnorm(1 - alpha / 2)), stats::qnorm(1 - alpha / 2 / J))
 
     lower_log_noadj_sim <- psi_hat_ABC_simp - cimult * se_hat_psi_hat_ABC_simp
     upper_log_noadj_sim <- psi_hat_ABC_simp + cimult * se_hat_psi_hat_ABC_simp
@@ -150,15 +163,15 @@ ndFit <- function(W, # matrix of responses
   # standard error
   se_hat_psi_hat_ABC_g_simp <- sqrt(diag(Sigmahat_g) / n)
 
-  lower_g_log_noadj_marg <- psi_hat_ABC_g_simp - qnorm(1 - alpha / 2) * se_hat_psi_hat_ABC_g_simp
-  upper_g_log_noadj_marg <- psi_hat_ABC_g_simp + qnorm(1 - alpha / 2) * se_hat_psi_hat_ABC_g_simp
+  lower_g_log_noadj_marg <- psi_hat_ABC_g_simp - stats::qnorm(1 - alpha / 2) * se_hat_psi_hat_ABC_g_simp
+  upper_g_log_noadj_marg <- psi_hat_ABC_g_simp + stats::qnorm(1 - alpha / 2) * se_hat_psi_hat_ABC_g_simp
 
   if (uniform_CI) {
-    q <- quantile(apply(MASS::mvrnorm(n = 1e5, mu = rep(0, J),
+    q <- stats::quantile(apply(MASS::mvrnorm(n = 1e5, mu = rep(0, J),
                                       Sigma = corrhat_g),
                         1,
                         function(r){max(abs(r))}), 1 - alpha)
-    cimult <- pmin(pmax(q, qnorm(1 - alpha / 2)), qnorm(1 - alpha / 2 / J))
+    cimult <- pmin(pmax(q, stats::qnorm(1 - alpha / 2)), stats::qnorm(1 - alpha / 2 / J))
 
     lower_g_log_noadj_sim <- psi_hat_ABC_g_simp - cimult * se_hat_psi_hat_ABC_g_simp
     upper_g_log_noadj_sim <- psi_hat_ABC_g_simp + cimult * se_hat_psi_hat_ABC_g_simp
@@ -213,7 +226,7 @@ ndFit <- function(W, # matrix of responses
                              d = d,
                              uniform_CI = uniform_CI,
                              verbose = verbose)
-    
+
     results_adjust <- list(ABCD = data.frame(taxon = 1:J,
                                              est = psi_ABCD$res$est,
                                              se = psi_ABCD$res$se,
