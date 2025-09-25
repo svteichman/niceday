@@ -158,7 +158,7 @@ ndFit <- function(W,
   # estimate covariance of estimates
   grad_h_mat <- t(diag(1, length(grad_g_plugin)) - grad_g_plugin)
   Sigmahat_g <- grad_h_mat %*% Sigmahat %*% t(grad_h_mat)
-  corrhat_g <- cov2cor(Sigmahat_g)
+  corrhat_g <- stats::cov2cor(Sigmahat_g)
 
   # standard error
   se_hat_psi_hat_ABC_g_simp <- sqrt(diag(Sigmahat_g) / n)

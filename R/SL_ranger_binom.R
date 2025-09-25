@@ -1,5 +1,3 @@
-#' @export
-
 # implement ranger for binomial family
 SL.ranger.binom <- function (Y, X, newX, obsWeights,
                              num.trees = 100,
@@ -8,7 +6,7 @@ SL.ranger.binom <- function (Y, X, newX, obsWeights,
                              mtry = floor(sqrt(ncol(X))), write.forest = TRUE,
                              sample.fraction = ifelse(replace, 1, 0.632),
                              replace = TRUE, num.threads = 1, verbose = FALSE, ...) {
-  require("ranger")
+
   Y = factor(Y, levels = c(1, 0))
   if (is.matrix(X)) {
     X = data.frame(X)

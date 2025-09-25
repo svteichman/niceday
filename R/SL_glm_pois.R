@@ -1,5 +1,3 @@
-#' @export
-
 # re-implement poisson GLM with more iterations and larger epsilon
 SL.glm.pois <- function (Y, X, newX, family, obsWeights, model = TRUE, ...) {
   if (is.matrix(X)) {

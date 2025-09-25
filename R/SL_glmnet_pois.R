@@ -1,10 +1,7 @@
-#' @export
-
 # implement poisson GLM with lasso regularization
 SL.glmnet.pois <- function (Y, X, newX, family, obsWeights, id, alpha = 1, nfolds = 10,
                           nlambda = 100, useMin = TRUE, loss = "deviance", ...)
 {
-  require("glmnet")
   if (!is.matrix(X)) {
     X <- stats::model.matrix(~-1 + ., X)
     newX <- stats::model.matrix(~-1 + ., newX)

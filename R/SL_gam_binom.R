@@ -1,5 +1,3 @@
-#' @export
-
 # implement Generalized Additive Model (GAM) under binomial family
 SL.gam.binom <- function (Y, X, newX, family, obsWeights, deg.gam = 2, cts.num = 4,
                           ...) {
@@ -22,7 +20,7 @@ SL.gam.binom <- function (Y, X, newX, family, obsWeights, deg.gam = 2, cts.num =
     gam.model <- stats::as.formula(paste("Y~", paste(colnames(X),
                                                      collapse = "+"), sep = ""))
   }
-  fit.gam <- gam::gam(gam.model, data = data.frame(Y, X), family = binomial(link = "logit"),
+  fit.gam <- gam::gam(gam.model, data = data.frame(Y, X), family = stats::binomial(link = "logit"),
                       control = gam::gam.control(maxit = 50, bf.maxit = 50),
                       weights = obsWeights)
   if (utils::packageVersion("gam") >= "1.15") {

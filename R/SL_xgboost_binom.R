@@ -1,10 +1,8 @@
-#' @export
-
 # implement binomial xgboost
 SL.xgboost.binom <- function (Y, X, newX, family, obsWeights, id, nrounds = 50, params = list(),
                              max_depth = 5, min_child_weight = 6, eta = 0.1,
                              nthread = 1, verbose = 0, save_period = NULL, ...) {
-  require("xgboost")
+
   if (utils::packageVersion("xgboost") < "0.6") {
     stop("SL.xgboost requires xgboost version >= 0.6, try help('SL.xgboost') for details")
   }
@@ -28,7 +26,7 @@ SL.xgboost.binom <- function (Y, X, newX, family, obsWeights, id, nrounds = 50, 
   if (!is.matrix(newX)) {
     newX = stats::model.matrix(~. - 1, newX)
   }
-  pred = predict(model, newdata = newX)
+  pred = stats::predict(model, newdata = newX)
   fit = list(object = model)
   class(fit) = c("SL.xgboost.binom")
   out = list(pred = pred, fit = fit)

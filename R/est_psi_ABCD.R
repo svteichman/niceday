@@ -1,5 +1,3 @@
-#' @export
-
 est_psi_ABCD <- function(W,
                          A,
                          X,
@@ -116,7 +114,7 @@ est_psi_ABCD <- function(W,
                                             data.frame(clever.resp   = W[, j] / ub,
                                                        clever.weight = (1 / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)) /
                                                          mean(1 / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)),
-                                                       clever.offset = stats:qlogis(mhat_Aj / ub),
+                                                       clever.offset = stats::qlogis(mhat_Aj / ub),
                                                        clever.covar1 = A,
                                                        clever.covar2 = 1 - A,
                                                        clever.subset = W[, j] > 0),

@@ -1,5 +1,3 @@
-#' @export
-
 # implement Generalized Additive Model (GAM) under Poisson family
 SL.gam.pois <- function (Y, X, newX, family, obsWeights, deg.gam = 2, cts.num = 4,
                           ...) {

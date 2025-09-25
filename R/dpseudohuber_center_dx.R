@@ -1,5 +1,3 @@
-#' @export
-
 #derivative of pseudohuber center wrt its arguments
 #used for testing
 #i.e., this gives us little h described in inference

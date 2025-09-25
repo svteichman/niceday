@@ -1,5 +1,3 @@
-#' @export
-
 #get the pseudohuber smoothed median
 pseudohuber_center <- function(x,
                                d = 1, #smoothing parameter

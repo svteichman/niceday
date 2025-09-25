@@ -1,5 +1,3 @@
-#' @export
-
 #pseudohuber criterion
 pseudohuber <- function(x,#values to computed criterion from
                         d #smoothing parameter (how to compromise between mean and median)
