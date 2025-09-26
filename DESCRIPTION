@@ -1,12 +1,26 @@
 Package: niceday
-Type: Package
-Title: What the Package Does (Title Case)
+Title: Nonparametric estimates and confidence intervals for fold-difference parameters
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
-License: What license is it under?
+Authors@R: c(person("Grant", "Hopkins", role = c("aut")),
+             person("Amy D", "Willis", email = "adwillis@uw.edu", role = c("aut", "cre"), comment = c(ORCID = "0000-0002-2802-4317")),
+             person("Sarah", "Teichman", role = "aut"))
+Description: A nonparametric method to estimate fold-differences associated with binary covariates for multivariate outcomes.
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.3.2
+Depends: 
+  gam,
+  MASS,
+  glmnet,
+  hal9001,
+  ranger,
+  xgboost,
+  withr,
+  SuperLearner
+Suggests:
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+VignetteBuilder: knitr

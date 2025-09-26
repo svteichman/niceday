@@ -1,0 +1,36 @@
+---
+title: "Introduction to niceday"
+author: "Amy Willis"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to niceday}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+First, install `niceday` if you haven't already.
+
+```{r, eval = FALSE}
+# if (!require("remotes", quietly = TRUE))
+#     install.packages("remotes")
+# 
+# remotes::install_github("statdivlab/niceday")
+```
+
+Now we can load `niceday`.
+
+```{r}
+library(niceday)
+```
+
+## Introduction 
+
+[use this vignette to demonstrate use of `niceday` on data analysis from the paper!]

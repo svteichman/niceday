@@ -1,5 +1,3 @@
-#' @export
-
 # implement Generalized Additive Model (GAM) under binomial family
 SL.gam.binom <- function (Y, X, newX, family, obsWeights, deg.gam = 2, cts.num = 4,
                           ...) {
@@ -9,23 +7,23 @@ SL.gam.binom <- function (Y, X, newX, family, obsWeights, deg.gam = 2, cts.num =
   if (!"package:gam" %in% search()) {attachNamespace("gam")}
   cts.x <- apply(X, 2, function(x) (length(unique(x)) > cts.num))
   if (sum(!cts.x) > 0) {
-    gam.model <- as.formula(paste("Y~", paste(paste("s(",
-                            colnames(X[, cts.x, drop = FALSE]), ",", deg.gam,
-                            ")", sep = ""), collapse = "+"), "+",
-                            paste(colnames(X[, !cts.x, drop = FALSE]), collapse = "+")))
+    gam.model <- stats::as.formula(paste("Y~", paste(paste("s(",
+                                                           colnames(X[, cts.x, drop = FALSE]), ",", deg.gam,
+                                                           ")", sep = ""), collapse = "+"), "+",
+                                         paste(colnames(X[, !cts.x, drop = FALSE]), collapse = "+")))
   } else {
-    gam.model <- as.formula(paste("Y~", paste(paste("s(",
-                            colnames(X[, cts.x, drop = FALSE]), ",", deg.gam,
-                            ")", sep = ""), collapse = "+")))
+    gam.model <- stats::as.formula(paste("Y~", paste(paste("s(",
+                                                           colnames(X[, cts.x, drop = FALSE]), ",", deg.gam,
+                                                           ")", sep = ""), collapse = "+")))
   }
   if (sum(!cts.x) == length(cts.x)) {
-    gam.model <- as.formula(paste("Y~", paste(colnames(X),
-                                              collapse = "+"), sep = ""))
+    gam.model <- stats::as.formula(paste("Y~", paste(colnames(X),
+                                                     collapse = "+"), sep = ""))
   }
-  fit.gam <- gam::gam(gam.model, data = data.frame(Y, X), family = binomial(link = "logit"),
+  fit.gam <- gam::gam(gam.model, data = data.frame(Y, X), family = stats::binomial(link = "logit"),
                       control = gam::gam.control(maxit = 50, bf.maxit = 50),
                       weights = obsWeights)
-  if (packageVersion("gam") >= "1.15") {
+  if (utils::packageVersion("gam") >= "1.15") {
     pred <- gam::predict.Gam(fit.gam, newdata = data.frame(newX), type = "response")
   } else {
     stop("This SL.gam.qpois wrapper requires gam version >= 1.15, please update the gam package with 'update.packages('gam')'")

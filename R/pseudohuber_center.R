@@ -1,12 +1,10 @@
-#' @export
-
 #get the pseudohuber smoothed median
 pseudohuber_center <- function(x,
                                d = 1, #smoothing parameter
                                limit = 20, #max iterations
                                tolerance = 1e-8){
 
-  y <- median(x) #start at median
+  y <- stats::median(x) #start at median
   converged <- FALSE
 
   ps <- pseudohuber(x -y, d)
@@ -18,7 +16,7 @@ pseudohuber_center <- function(x,
 
     w <- sqrt(1/(1 + scaled_sq))
     old_y <- y
-    y <- weighted.mean(x,w)
+    y <- stats::weighted.mean(x,w)
     ps <- c(ps,pseudohuber(x- y,d))
 
     iter <- iter + 1

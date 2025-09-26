@@ -1,5 +1,25 @@
+#' Estimate nuisance parameters for niceday model
+#'
+#' @param W Matrix of multivariate outcome variables.
+#' @param A Binary covariate of interest.
+#' @param X Matrix of covariates to adjust for.
+#' @param num_crossval_folds Number of folds for cross-validation. Default is `10`.
+#' @param num_crossfit_folds Number of folds for cross-fitting. Default is `10`.
+#' @param gtrunc ?? Default is `min(0.05, 5 / sqrt(NROW(W)) / log(NROW(W)))`.
+#' @param sl.lib.pi Libraries used to estimate ???. Default is `c("SL.mean", "SL.glm.binom", "SL.glmnet.binom", "SL.gam.binom", "SL.ranger.binom", "SL.hal9001.binom")`.
+#' @param sl.lib.m Libraries used to estimate ???. Default is `c("SL.mean", "SL.glm.pois", "SL.glmnet.pois", "SL.ranger.pois")`.
+#' @param sl.lib.q Libraries used to estimate ???. Default is the input to `sl.lib.pi`.
+#' @param allow_warnings Allow warnings? Default is `TRUE`.
+#' @param enforce_pos_reg Should estimates of \eqn{E[W_j|A=a,X]} to forced to be strictly positive? Default is `FALSE`.
+#' @param verbose Do you want to receive updates as this function runs? Default is `TRUE`.
+#'
+#' @return A list containing elements `noadjust`, `adjust`, `nuis`, `cf_nuis`, and `variance`. `noadjust` gives unadjusted parameter estimates.
+#' `adjust` gives covariate adjusted parameter estimates. `nuis` gives estimates of nuisance parameters. Add a description of the rest here!
+#'
+#' @examples
+#' # add example here!
+#'
 #' @export
-
 est_nuis <- function(W,
                      A,
                      X,
@@ -20,7 +40,6 @@ est_nuis <- function(W,
                      allow_warnings = TRUE,
                      enforce_pos_reg = FALSE,
                      verbose = TRUE) {
-  require("SuperLearner")
 
   n <- nrow(W)
   J <- ncol(W)
@@ -72,7 +91,7 @@ est_nuis <- function(W,
                     dimnames = c(list(paste0("tax", 1:J)),
                                  list(paste0("fold", 1:nfold))))
   check_q0 <- check_q1 <- check_m0 <- check_m1
-  
+
   ##################################
   ### Estimate propensity score: ###
   ###  P(A=1|X)                  ###
@@ -81,7 +100,7 @@ est_nuis <- function(W,
   if (verbose %in% c(TRUE, "development")) {
     cat("Beginning propensity score estimation\n")
     pb_id <- 0
-    pb <- txtProgressBar(min = 0, max = nfold, style = 3)
+    pb <- utils::txtProgressBar(min = 0, max = nfold, style = 3)
   }
 
   for (k in 1:nfold) {
@@ -96,19 +115,19 @@ est_nuis <- function(W,
     fit_pi <- function(SL.library, subset_id, method) {
       #suppressMessages(
         withCallingHandlers(expr = {
-          
-          fit <- SuperLearner(Y = A[subset_id],
-                              X = setNames(object = data.frame(X[subset_id, , drop = FALSE]),
-                                           nm = paste0("X", 1:ncol(X))),
-                              newX = setNames(object = data.frame(X),
-                                              nm = paste0("X", 1:ncol(X))),
-                              method = method,
-                              family = binomial(link = "logit"),
-                              SL.library = SL.library,
-                              cvControl = list(V = min(num_crossval_folds,
-                                                       sum(A[subset_id] == 0),
-                                                       sum(A[subset_id] == 1)),
-                                               stratifyCV = TRUE))
+
+          fit <- SuperLearner::SuperLearner(Y = A[subset_id],
+                                            X = stats::setNames(object = data.frame(X[subset_id, , drop = FALSE]),
+                                                         nm = paste0("X", 1:ncol(X))),
+                                            newX = stats::setNames(object = data.frame(X),
+                                                            nm = paste0("X", 1:ncol(X))),
+                                            method = method,
+                                            family = stats::binomial(link = "logit"),
+                                            SL.library = SL.library,
+                                            cvControl = list(V = min(num_crossval_folds,
+                                                                     sum(A[subset_id] == 0),
+                                                                     sum(A[subset_id] == 1)),
+                                                             stratifyCV = TRUE))
           pred <- c(fit$SL.predict)
           weights <- c(fit$coef)
           # # FUTURE OPTION: implement discrete SuperLearner
@@ -169,7 +188,7 @@ est_nuis <- function(W,
     # update progress bar
     if (verbose %in% c(TRUE, "development")) {
       pb_id <- pb_id + 1
-      setTxtProgressBar(pb, pb_id)
+      utils::setTxtProgressBar(pb, pb_id)
     }
   }
 
@@ -183,7 +202,7 @@ est_nuis <- function(W,
   if (verbose %in% c(TRUE, "development")) {
     cat("Beginning conditional mean estimation\n")
     pb_id <- 0
-    pb <- txtProgressBar(min = 0, max = nfold * J, style = 3)
+    pb <- utils::txtProgressBar(min = 0, max = nfold * J, style = 3)
   }
 
   for (j in 1:J) {
@@ -199,16 +218,16 @@ est_nuis <- function(W,
       fit_m <- function(SL.library, subset_id, method) {
         #suppressMessages(
           withCallingHandlers(expr = {
-            fit <- SuperLearner(Y = W[subset_id, j, drop = TRUE],
-                                X = setNames(object = data.frame(X[subset_id, , drop = FALSE]),
-                                             nm = paste0("X", 1:ncol(X))),
-                                newX = setNames(object = data.frame(X),
-                                                nm = paste0("X", 1:ncol(X))),
-                                method = method,
-                                family = gaussian(link = "identity"),
-                                SL.library = SL.library,
-                                cvControl = list(V = min(num_crossval_folds,
-                                                         sum(subset_id))))
+            fit <- SuperLearner::SuperLearner(Y = W[subset_id, j, drop = TRUE],
+                                              X = stats::setNames(object = data.frame(X[subset_id, , drop = FALSE]),
+                                                           nm = paste0("X", 1:ncol(X))),
+                                              newX = stats::setNames(object = data.frame(X),
+                                                              nm = paste0("X", 1:ncol(X))),
+                                              method = method,
+                                              family = stats::gaussian(link = "identity"),
+                                              SL.library = SL.library,
+                                              cvControl = list(V = min(num_crossval_folds,
+                                                                       sum(subset_id))))
             pred <- c(fit$SL.predict)
             weights <- c(fit$coef)
             if (all(pred == 0)) {stop("Estimates cannot all be zero.")}
@@ -224,18 +243,18 @@ est_nuis <- function(W,
       fit_q <- function(SL.library, subset_id, method) {
         #suppressMessages(
           withCallingHandlers(expr = {
-            fit <- SuperLearner(Y = ifelse(W[subset_id, j] > 0, 1, 0),
-                                X = setNames(object = data.frame(X[subset_id, , drop = FALSE]),
-                                             nm = paste0("X", 1:ncol(X))),
-                                newX = setNames(object = data.frame(X),
-                                                nm = paste0("X", 1:ncol(X))),
-                                method = method,
-                                family = binomial(link = "logit"),
-                                SL.library = SL.library,
-                                cvControl = list(V = min(num_crossval_folds,
-                                                         sum(W[subset_id, j] > 0),
-                                                         sum(W[subset_id, j] == 0)),
-                                                 stratifyCV = TRUE))
+            fit <- SuperLearner::SuperLearner(Y = ifelse(W[subset_id, j] > 0, 1, 0),
+                                              X = stats::setNames(object = data.frame(X[subset_id, , drop = FALSE]),
+                                                           nm = paste0("X", 1:ncol(X))),
+                                              newX = stats::setNames(object = data.frame(X),
+                                                              nm = paste0("X", 1:ncol(X))),
+                                              method = method,
+                                              family = stats::binomial(link = "logit"),
+                                              SL.library = SL.library,
+                                              cvControl = list(V = min(num_crossval_folds,
+                                                                       sum(W[subset_id, j] > 0),
+                                                                       sum(W[subset_id, j] == 0)),
+                                                               stratifyCV = TRUE))
             pred <- c(fit$SL.predict)
             weights <- c(fit$coef)
             if (all(pred == 0)) {stop("Estimates cannot all be zero.")}
@@ -413,7 +432,7 @@ est_nuis <- function(W,
       mat_m1[1:n, j, k] <- pmin(pmax(est_m1$pred, 0), 1.5 * max(W[A == 1, j]))
       check_m1[j, k] <- flag_m1
       if (flag_m1 == 1) {weights_m1[j, , k] <- est_m1$weights}
-      
+
       mat_q1[1:n, j, k] <- pmin(pmax(est_q1$pred, 0), 1)
       check_q1[j, k] <- flag_q1
       if (flag_q1 == 1) {weights_q1[j, , k] <- est_q1$weights}
@@ -425,11 +444,11 @@ est_nuis <- function(W,
       mat_q0[1:n, j, k] <- pmin(pmax(est_q0$pred, 0), 1)
       check_q0[j, k] <- flag_q0
       if (flag_q0 == 1) {weights_q0[j, , k] <- est_q0$weights}
-      
+
       # update progress bar
       if (verbose %in% c(TRUE, "development")) {
         pb_id <- pb_id + 1
-        setTxtProgressBar(pb, pb_id)
+        utils::setTxtProgressBar(pb, pb_id)
       }
     }
   }

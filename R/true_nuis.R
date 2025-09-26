@@ -1,5 +1,4 @@
-#' @export
-
+# used for niceday paper simulations at https://github.com/statdivlab/niceday_supplementary
 true_nuis <- function(W,
                       A,
                       X,

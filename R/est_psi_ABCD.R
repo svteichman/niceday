@@ -1,5 +1,3 @@
-#' @export
-
 est_psi_ABCD <- function(W,
                          A,
                          X,
@@ -60,7 +58,7 @@ est_psi_ABCD <- function(W,
 
   if (verbose %in% c(TRUE, "development")) {
     cat("Beginning TMLE\n")
-    pb <- txtProgressBar(min = 0, max = J, style = 3)
+    pb <- utils::txtProgressBar(min = 0, max = J, style = 3)
   }
 
   tmle_perturbation <- matrix(NA, nrow = J, ncol = 6,
@@ -87,20 +85,20 @@ est_psi_ABCD <- function(W,
 
     if (tmle_fluctuation == "poisson") {
 
-      m_epsilon <- coef(glm(formula = clever.resp ~ -1 + offset(clever.offset) + clever.covar1 + clever.covar2,
-                            weights = clever.weight,
-                            subset = clever.subset,
-                            data =
-                              data.frame(clever.resp   = W[, j],
-                                         clever.weight = (1 / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)) /
-                                           mean(1 / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)),
-                                         clever.offset = log(mhat_Aj),
-                                         clever.covar1 = A,
-                                         clever.covar2 = 1 - A,
-                                         clever.subset = W[, j] > 0),
-                            family = quasipoisson(link = "log"),
-                            control = glm.control(epsilon = 1e-10,
-                                                  maxit = 1e3)))
+      m_epsilon <- stats::coef(stats::glm(formula = clever.resp ~ -1 + offset(clever.offset) + clever.covar1 + clever.covar2,
+                                          weights = clever.weight,
+                                          subset = clever.subset,
+                                          data =
+                                            data.frame(clever.resp   = W[, j],
+                                                       clever.weight = (1 / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)) /
+                                                         mean(1 / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)),
+                                                       clever.offset = log(mhat_Aj),
+                                                       clever.covar1 = A,
+                                                       clever.covar2 = 1 - A,
+                                                       clever.subset = W[, j] > 0),
+                                          family = stats::quasipoisson(link = "log"),
+                                          control = stats::glm.control(epsilon = 1e-10,
+                                                                       maxit = 1e3)))
 
       mhat_1j_update <- mhat_1j * exp(m_epsilon[1] * A)
       mhat_0j_update <- mhat_0j * exp(m_epsilon[2] * (1 - A))
@@ -109,24 +107,24 @@ est_psi_ABCD <- function(W,
     } else if (tmle_fluctuation == "logistic") {
 
       ub <- max(c(W[, j], mhat_0j, mhat_1j)) * 1.01
-      m_epsilon <- coef(glm(formula = clever.resp ~ -1 + offset(clever.offset) + clever.covar1 + clever.covar2,
-                            weights = clever.weight,
-                            subset = clever.subset,
-                            data =
-                              data.frame(clever.resp   = W[, j] / ub,
-                                         clever.weight = (1 / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)) /
-                                           mean(1 / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)),
-                                         clever.offset = qlogis(mhat_Aj / ub),
-                                         clever.covar1 = A,
-                                         clever.covar2 = 1 - A,
-                                         clever.subset = W[, j] > 0),
-                            family = quasibinomial(link = "logit"),
-                            control = glm.control(epsilon = 1e-10,
-                                                  maxit = 1e3)))
+      m_epsilon <- stats::coef(stats::glm(formula = clever.resp ~ -1 + offset(clever.offset) + clever.covar1 + clever.covar2,
+                                          weights = clever.weight,
+                                          subset = clever.subset,
+                                          data =
+                                            data.frame(clever.resp   = W[, j] / ub,
+                                                       clever.weight = (1 / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)) /
+                                                         mean(1 / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)),
+                                                       clever.offset = stats::qlogis(mhat_Aj / ub),
+                                                       clever.covar1 = A,
+                                                       clever.covar2 = 1 - A,
+                                                       clever.subset = W[, j] > 0),
+                                          family = stats::quasibinomial(link = "logit"),
+                                          control = stats::glm.control(epsilon = 1e-10,
+                                                                       maxit = 1e3)))
 
       m_epsilon <- ifelse(is.na(m_epsilon), 0, m_epsilon)
-      mhat_1j_update <- plogis(qlogis(mhat_1j / ub) + m_epsilon[1] * A) * ub
-      mhat_0j_update <- plogis(qlogis(mhat_0j / ub) + m_epsilon[2] * (1 - A)) * ub
+      mhat_1j_update <- stats::plogis(stats::qlogis(mhat_1j / ub) + m_epsilon[1] * A) * ub
+      mhat_0j_update <- stats::plogis(stats::qlogis(mhat_0j / ub) + m_epsilon[2] * (1 - A)) * ub
       mhat_Aj_update <- ifelse(A == 1, mhat_1j_update, mhat_0j_update)
 
     } else {
@@ -158,25 +156,25 @@ est_psi_ABCD <- function(W,
       qhat_0j[which_trunc_q] <- pmax(pmin(qhat_0j[which_trunc_q], 1 - trunc_q), trunc_q)
       qhat_Aj <- ifelse(A == 1, qhat_1j, qhat_0j)
 
-      q_epsilon <- coef(glm(formula = clever.resp ~ -1 + offset(clever.offset) + clever.covar1 + clever.covar2,
-                            weights = clever.weight,
-                            subset = clever.subset,
-                            data =
-                              data.frame(clever.resp   = ifelse(W[, j] > 0, 1, 0),
-                                         clever.weight = (mhat_Aj_update / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)) /
-                                           mean(mhat_Aj_update / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)),
-                                         clever.offset = qlogis(qhat_Aj),
-                                         clever.covar1 = A,
-                                         clever.covar2 = 1 - A,
-                                         clever.subset = !(qhat_Aj == 1 | qhat_Aj == 0)),
-                            family = quasibinomial(link = "logit"),
-                            control = glm.control(epsilon = 1e-10,
-                                                  maxit = 1e3)))
+      q_epsilon <- stats::coef(stats::glm(formula = clever.resp ~ -1 + offset(clever.offset) + clever.covar1 + clever.covar2,
+                                          weights = clever.weight,
+                                          subset = clever.subset,
+                                          data =
+                                            data.frame(clever.resp   = ifelse(W[, j] > 0, 1, 0),
+                                                       clever.weight = (mhat_Aj_update / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)) /
+                                                         mean(mhat_Aj_update / ifelse(A == 1, cf_est_pi, 1 - cf_est_pi)),
+                                                       clever.offset = stats::qlogis(qhat_Aj),
+                                                       clever.covar1 = A,
+                                                       clever.covar2 = 1 - A,
+                                                       clever.subset = !(qhat_Aj == 1 | qhat_Aj == 0)),
+                                          family = stats::quasibinomial(link = "logit"),
+                                          control = stats::glm.control(epsilon = 1e-10,
+                                                                       maxit = 1e3)))
 
       # if perturbation coefficient is NA, make no change
       q_epsilon <- ifelse(is.na(q_epsilon), 0, q_epsilon)
-      qhat_1j_update <- plogis(qlogis(qhat_1j) + q_epsilon[1] * A)
-      qhat_0j_update <- plogis(qlogis(qhat_0j) + q_epsilon[2] * (1 - A))
+      qhat_1j_update <- stats::plogis(stats::qlogis(qhat_1j) + q_epsilon[1] * A)
+      qhat_0j_update <- stats::plogis(stats::qlogis(qhat_0j) + q_epsilon[2] * (1 - A))
     }
 
     if (any(abs(c(mean((A == 0) * (W[, j] - mhat_0j_update * qhat_0j_update) / (1 - cf_est_pi)),
@@ -194,9 +192,9 @@ est_psi_ABCD <- function(W,
     est_AIPW0_tmle[j] <- mean(mhat_0j_update * qhat_0j_update) # + mean(((1 - A) / (1 - cf_est_pi)) * (W[, j] - mhat_0j_update * qhat_0j_update))
 
     z1 <- sqrt(n) * mean((A / cf_est_pi) * (W[, j] - cf_est_m1[, j] * cf_est_q1[, j])) /
-      sd((A / cf_est_pi) * (W[, j] - cf_est_m1[, j] * cf_est_q1[, j]))
+      stats::sd((A / cf_est_pi) * (W[, j] - cf_est_m1[, j] * cf_est_q1[, j]))
     z0 <- sqrt(n) * mean(((1 - A) / (1 - cf_est_pi)) * (W[, j] - cf_est_m0[, j] * cf_est_q0[, j])) /
-      sd(((1 - A) / (1 - cf_est_pi)) * (W[, j] - cf_est_m0[, j] * cf_est_q0[, j]))
+      stats::sd(((1 - A) / (1 - cf_est_pi)) * (W[, j] - cf_est_m0[, j] * cf_est_q0[, j]))
     tmle_perturbation[j, ] <- c(m_epsilon, q_epsilon, z1, z0)
 
     mhat_1_update[, j] <- mhat_1j_update
@@ -207,7 +205,7 @@ est_psi_ABCD <- function(W,
 
     # update progress bar
     if (verbose %in% c(TRUE, "development")) {
-      setTxtProgressBar(pb, j)
+      utils::setTxtProgressBar(pb, j)
     }
   }
   cat("\n")
@@ -242,20 +240,20 @@ est_psi_ABCD <- function(W,
 
   if_log_AIPW_tmle <- t(t(if_AIPW1_tmle) / est_AIPW1_tmle) - t(t(if_AIPW0_tmle) / est_AIPW0_tmle)
 
-  Sigmahat_log_AIPW <- cov(if_log_AIPW_tmle)
+  Sigmahat_log_AIPW <- stats::cov(if_log_AIPW_tmle)
 
   ###########################################################################
   # Step 3:                                                                 #
   # Apply Delta Method to learn log(E[E[W|A=1,X]] / E[E[W|A=0,X]]) - g(...) #
   ###########################################################################
 
-  est_g_log_AIPW <- est_log_AIPW - niceday::pseudohuber_center(x = est_log_AIPW, d = d)
+  est_g_log_AIPW <- est_log_AIPW - pseudohuber_center(x = est_log_AIPW, d = d)
 
-  est_grad_g_log_AIPW <- niceday::dpseudohuber_center_dx(x = est_log_AIPW, d = d)
+  est_grad_g_log_AIPW <- dpseudohuber_center_dx(x = est_log_AIPW, d = d)
 
   if_g_log_AIPW_tmle <- if_log_AIPW_tmle - (if_log_AIPW_tmle %*% est_grad_g_log_AIPW) %*% rep(1, J)
 
-  Sigmahat_g_log_AIPW <- cov(if_g_log_AIPW_tmle)
+  Sigmahat_g_log_AIPW <- stats::cov(if_g_log_AIPW_tmle)
 
   ##########################################################################
   # Step 4:                                                                #
@@ -265,14 +263,14 @@ est_psi_ABCD <- function(W,
   # produce confidence intervals and p-values
   se_est_log_AIPW <- sqrt(diag(Sigmahat_log_AIPW)) / sqrt(n)
 
-  lower_log_AIPW_marg <- est_log_AIPW - qnorm(1 - alpha / 2) * se_est_log_AIPW
-  upper_log_AIPW_marg <- est_log_AIPW + qnorm(1 - alpha / 2) * se_est_log_AIPW
+  lower_log_AIPW_marg <- est_log_AIPW - stats::qnorm(1 - alpha / 2) * se_est_log_AIPW
+  upper_log_AIPW_marg <- est_log_AIPW + stats::qnorm(1 - alpha / 2) * se_est_log_AIPW
 
   if (uniform_CI) {
-    q <- quantile(apply(MASS::mvrnorm(n = bs_rep, mu = rep(0, J),
-                                      Sigma = cor(if_log_AIPW_tmle)), 1,
+    q <- stats::quantile(apply(MASS::mvrnorm(n = bs_rep, mu = rep(0, J),
+                                      Sigma = stats::cor(if_log_AIPW_tmle)), 1,
                         function(r){max(abs(r))}), 1 - alpha)
-    cimult <- pmin(pmax(q, qnorm(1 - alpha / 2)), qnorm(1 - alpha / 2 / J))
+    cimult <- pmin(pmax(q, stats::qnorm(1 - alpha / 2)), stats::qnorm(1 - alpha / 2 / J))
 
     lower_log_AIPW_sim <- est_log_AIPW - cimult * se_est_log_AIPW
     upper_log_AIPW_sim <- est_log_AIPW + cimult * se_est_log_AIPW
@@ -281,19 +279,19 @@ est_psi_ABCD <- function(W,
     upper_log_AIPW_sim <- NA
   }
 
-  pval_log_AIPW <- 2 * (1 - pnorm(abs(est_log_AIPW / se_est_log_AIPW)))
+  pval_log_AIPW <- 2 * (1 - stats::pnorm(abs(est_log_AIPW / se_est_log_AIPW)))
 
   # produce confidence intervals and p-values
   se_est_g_log_AIPW <- sqrt(diag(Sigmahat_g_log_AIPW)) / sqrt(n)
 
-  lower_g_log_AIPW_marg <- est_g_log_AIPW - qnorm(1 - alpha / 2) * se_est_g_log_AIPW
-  upper_g_log_AIPW_marg <- est_g_log_AIPW + qnorm(1 - alpha / 2) * se_est_g_log_AIPW
+  lower_g_log_AIPW_marg <- est_g_log_AIPW - stats::qnorm(1 - alpha / 2) * se_est_g_log_AIPW
+  upper_g_log_AIPW_marg <- est_g_log_AIPW + stats::qnorm(1 - alpha / 2) * se_est_g_log_AIPW
 
   if (uniform_CI) {
-    q <- quantile(apply(MASS::mvrnorm(n = bs_rep, mu = rep(0, J),
-                                      Sigma = cor(if_g_log_AIPW_tmle)), 1,
+    q <- stats::quantile(apply(MASS::mvrnorm(n = bs_rep, mu = rep(0, J),
+                                      Sigma = stats::cor(if_g_log_AIPW_tmle)), 1,
                         function(r){max(abs(r))}), 1 - alpha)
-    cimult_g <- pmin(pmax(q, qnorm(1 - alpha / 2)), qnorm(1 - alpha / 2 / J))
+    cimult_g <- pmin(pmax(q, stats::qnorm(1 - alpha / 2)), stats::qnorm(1 - alpha / 2 / J))
 
     lower_g_log_AIPW_sim <- est_g_log_AIPW - cimult_g * se_est_g_log_AIPW
     upper_g_log_AIPW_sim <- est_g_log_AIPW + cimult_g * se_est_g_log_AIPW
@@ -302,7 +300,7 @@ est_psi_ABCD <- function(W,
     upper_g_log_AIPW_sim <- NA
   }
 
-  pval_g_log_AIPW <- 2 * (1 - pnorm(abs(est_g_log_AIPW / se_est_g_log_AIPW)))
+  pval_g_log_AIPW <- 2 * (1 - stats::pnorm(abs(est_g_log_AIPW / se_est_g_log_AIPW)))
 
   pnames <- paste0("log(E[E[V", 1:ncol(W), "|A=1,X]] / E[E[V", 1:ncol(W),"|A=0,X]])")
 
