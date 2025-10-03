@@ -1,6 +1,6 @@
 Package: niceday
 Title: Nonparametric estimates and confidence intervals for fold-difference parameters
-Version: 1.0.0
+Version: 0.1.0
 Authors@R: c(person("Grant", "Hopkins", role = c("aut")),
              person("Amy D", "Willis", email = "adwillis@uw.edu", role = c("aut", "cre"), comment = c(ORCID = "0000-0002-2802-4317")),
              person("Sarah", "Teichman", role = "aut"))
