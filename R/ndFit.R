@@ -1,21 +1,21 @@
 #' Fit niceday model
 #'
 #' @param W Matrix of multivariate outcome variables.
-#' @param A Binary covariate of interest.
-#' @param X Matrix of covariates to adjust for.
+#' @param A Formula indicating binary covariate of interest.
+#' @param X Formula indicating covariates to adjust for. Default is no adjustment, `~ 1`
+#' @param data Data frame containing any covariates in formulas for `A` and `X`.
 #' @param alpha Desired asymptotic type I error rate. Default is `0.05`.
-#' @param uniform_CI ?? Default is `TRUE`.
+#' @param uniform_CI Generate simultaneous confidence intervals across al categories? Default is `TRUE`.
 #' @param d Parameter for smoothed median centering. Default is `0.1`.
 #' @param gtrunc ?? Default is `0.01`.
 #' @param bs_rep Number of replicates for bootstrap sampling of uniform confidence intervals. Default is `1e5`.
 #' @param num_crossval_folds Number of folds for cross-validation. Default is `10`.
 #' @param num_crossfit_folds Number of folds for cross-fitting. Default is `10`.
 #' @param enforce_pos_reg Should estimates of \eqn{E[W_j|A=a,X]} to forced to be strictly positive? Default is `FALSE`.
-#' @param sl.lib.pi Libraries used to estimate ???. Default is `c("SL.mean", "SL.lm", "SL.glm.binom", "SL.xgboost.binom")`.
-#' @param sl.lib.m Libraries used to estimate ???. Default is `c("SL.mean", "SL.lm", "SL.glm.qpois", "SL.xgboost.pois")`.
-#' @param sl.lib.q Libraries used to estimate ???. Default is the input to `sl.lib.pi`.
-#' @param adjust_covariates Should covariates be adjusted for in the estimator? Default is `TRUE`.
-#' @param nuis ??. Default is `NULL`.
+#' @param sl.lib.pi Libraries used to estimate the propensity score nuisance function. Default is `c("SL.mean", "SL.lm", "SL.glm.binom", "SL.xgboost.binom")`.
+#' @param sl.lib.m Libraries used to estimate conditional mean mu_j nuisance functions. Default is `c("SL.mean", "SL.lm", "SL.glm.qpois", "SL.xgboost.pois")`.
+#' @param sl.lib.q Libraries used to estimate conditional probabilities on nonzero observations. Default is the input to `sl.lib.pi`.
+#' @param nuis Optional list of estimated nuisance functions (from function `est_nuis()`). Default is `NULL`.
 #' @param verbose Do you want to receive updates as this function runs? Default is `FALSE`.
 #' @param cross_fit Should cross-fitting be run? Default is `TRUE`.
 #'
@@ -28,7 +28,8 @@
 #' @export
 ndFit <- function(W,
                   A,
-                  X,
+                  X = ~ 1,
+                  data,
                   alpha = 0.05,
                   uniform_CI = TRUE,
                   d = 0.1,
@@ -46,7 +47,6 @@ ndFit <- function(W,
                                "SL.glm.qpois",
                                "SL.xgboost.pois"),
                   sl.lib.q = sl.lib.pi,
-                  adjust_covariates = TRUE,
                   nuis = NULL,
                   verbose = FALSE,
                   cross_fit = TRUE) {
@@ -56,12 +56,22 @@ ndFit <- function(W,
     stop("W must be an nxJ data.frame")
   }
 
-  if (!is.vector(A)) {
-    stop("A must be a length n vector")
+  if (!inherits(A, "formula")) {
+    stop("A must be a formula")
   }
 
-  if (length(A) != nrow(W)) {
-    stop("The length of A does not match the number of rows of W")
+  # transform A from formula into a vector
+  A <- model.matrix(A, data)
+  if (ncol(A) > 2) {
+    stop("The `A` formula must only include a single covariate")
+  }
+  A <- A[, 2]
+  if (any(!(A %in% c(0, 1)))) {
+    stop("The covariate A must be binary")
+  }
+
+  if (nrow(data) != nrow(W)) {
+    stop("The number of rows in `data` does not match the number of rows of `W`")
   }
 
   if (any(colMeans(W[A == 1, ]) == 0) | any(colMeans(W[A == 0, ]) == 0)) {
@@ -73,11 +83,12 @@ ndFit <- function(W,
     stop("One of the subgroups of interest (0 or 1) is entirely absent.")
   }
 
-  if (adjust_covariates) {
-    if (!(is.data.frame(X) | is.matrix(X))) {
-      stop("User requested covariate adjustment. The input X must be ",
-           "provided as a matrix or a data.frame object.")
-    }
+  # transform X formula into design matrix
+  X <- model.matrix(X, data)
+  if (ncol(X) == 1) {
+    adjust_covariates = TRUE
+  } else {
+    adjust_covariates = FALSE
   }
 
   if (!is.null(nuis)) {
