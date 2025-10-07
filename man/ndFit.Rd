@@ -40,7 +40,7 @@ ndFit(
 
 \item{d}{Parameter for smoothed median centering. Default is `0.1`.}
 
-\item{gtrunc}{?? Default is `0.01`.}
+\item{gtrunc}{Truncation parameter passed to `est_nuis`, bounding the estimated propensity scores away from `0` and `1` by `gtrunc`. Default is `0.01`.}
 
 \item{bs_rep}{Number of replicates for bootstrap sampling of uniform confidence intervals. Default is `1e5`.}
 
@@ -63,13 +63,24 @@ ndFit(
 \item{cross_fit}{Should cross-fitting be run? Default is `TRUE`.}
 }
 \value{
-A list containing elements `noadjust`, `adjust`, `nuis`, `cf_nuis`, and `variance`. `noadjust` gives unadjusted parameter estimates.
-`adjust` gives covariate adjusted parameter estimates. `nuis` gives estimates of nuisance parameters. Add a description of the rest here!
+A list containing elements `coef`, `nuisances`, `crossfit_nuisances`, `variance`, and `call`. `coef` contains estimates,
+standard errors, and confidence intervals for all categories. `nuisances` and `crossfit_nuisances` contain estimated nuisance
+parameters and nuisance parameters from the crossfitting procedure (included when adjustment covariates are included).
+`variance` contains the estimated covariance matrix. `call` contains the call to `ndFit()`.
 }
 \description{
 Fit niceday model
 }
 \examples{
-# add example here!
+data(EcoZUR_meta)
+data(EcoZUR_count)
+ndFit(W = EcoZUR_count[, 1:50], # consider only the first 50 taxa to run quickly
+      data = EcoZUR_meta,
+      A = ~ Diarrhea,
+      X = ~ sex + age_months,
+      num_crossval_folds = 2, # use more folds in practice
+      num_crossfit_folds = 2, # for cross validation and cross fitting
+      sl.lib.pi = c("SL.mean"), # choosing single learner for the example to run quickly,
+      sl.lib.m = c("SL.mean"))  # in practice would use other options as well
 
 }

@@ -1,0 +1,120 @@
+---
+title: "Introduction to niceday"
+output: rmarkdown::html_vignette
+author: "Grant Hopkins, Sarah Teichman, and Amy Willis"
+date: "`r Sys.Date()`"
+vignette: >
+  %\VignetteIndexEntry{Introduction to niceday}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+First we will install `niceday` if haven't already.
+
+```{r, eval = FALSE}
+# if (!require("remotes", quietly = TRUE))
+#     install.packages("remotes")
+# 
+# remotes::install_github("statdivlab/niceday")
+```
+
+Next we will load `niceday`, as well as `tidyverse` suite packages that we will use.
+
+```{r setup}
+library(niceday)
+library(dplyr)
+library(ggplot2)
+```
+
+## Introduction 
+
+This vignette provides an introduction to `niceday`, a statistical package that implements a nonparametric approach to estimating ratios of multi-category means under preferential sampling. First, let's break this down:
+
+- "nonparametric": we identify the parameters that we target without imposing parametric assumptions on the data distribution or the relationship between the outcome and covariates
+- "ratios of multi-category means": this refers to the parameter that we target. Specifically, we estimate ratios of means (also referred to as fold-differences), i.e. the multiplicative differences in means of the same category across levels of a binary covariate
+- "preferential sampling": we assume that observed data are proportional to absolute data that we wish we could observe, with potential unknown sample-specific and category-specific scaling factors 
+
+In niceday, there are two types of parameters that we estimate, and they depend on the assumptions that we are willing to make about our data. 
+
+## Data
+
+We will demonstrate use of `niceday` using a dataset from the EcoZUR study, [published](https://pmc.ncbi.nlm.nih.gov/articles/PMC10730187/) by Jesser et al. (2023). We will use metadata from the study as well as a count table, which provides observed levels of a set of microbial taxa from each sample. 
+
+```{r}
+data("EcoZUR_meta")
+data("EcoZUR_count")
+```
+
+Let's take a quick look at this data! 
+
+```{r}
+EcoZUR_meta %>% head()
+EcoZUR_count[1:5, 1:5]
+```
+
+## Fitting model
+
+Now that we have the data, we can use the `niceday` fit function `ndFit()` to estimate parameters and generate confidence intervals. 
+
+```{r}
+ndRes <- ndFit(W = EcoZUR_count, 
+               data = EcoZUR_meta,
+               A = ~ Diarrhea,
+               X = ~ sex + age_months,
+               num_crossval_folds = 2, # use more folds in practice
+               num_crossfit_folds = 2, # for cross validation and cross fitting
+               sl.lib.pi = c("SL.mean"), # choosing single learner for the example to run quickly,
+               sl.lib.m = c("SL.mean"), # in practice would use other options as well
+               verbose = TRUE)  
+```
+
+Let's look closer at some of the arguments for `ndFit()`. 
+
+- `W`: this is our count table, with observations on the rows and categories on the columns
+- `data`: this is our metadata (which includes all covariates in `A` and `X` formulas)
+- `A`: this is the binary covariate that we would like to estimate fold-differences across (given as a `formula`)
+- `X`: these are the covariates that we would like to adjust for in our model
+- `num_crossval_folds` and `num_crossfit_folds`: the numbers of folds used for cross-validation and cross-fitting. We recommend using the defaults of `10` for each of these, we just use `2` in this example to run more quickly.
+- `sl.lib.pi` and `sl.lib.m`: the types of statistical learners that we use for our nuisance parameters (these are additional parameters that we must estimate in order to estimate our target parameters). In this example we only use the simplest learner "SL.mean", but in practice we recommend a wider set of learners to account for more complex relationships between the outcome and covariates 
+
+There are more optional arguments for `ndFit()` that we won't cover here. Feel free to post an issue if you have questions about them! 
+
+## Investigating results 
+
+Now, let's look at our results. The results for our target parameters are in the `coef` component in our `ndFit` object.
+
+```{r}
+ndRes$coef$Psi2 %>% head()
+ndRes$coef$Psi2g %>% head()
+```
+
+Finally, let's plot our estimates and 95% confidence intervals.
+
+```{r}
+ndRes$coef$Psi2g %>%
+  mutate(includes_zero = ifelse(lower_marg < 0 & upper_marg > 0, TRUE, FALSE)) %>% 
+  ggplot(aes(x = category, y = est, color = includes_zero,
+             ymin = upper_marg, ymax = lower_marg)) + 
+  geom_point() + 
+  geom_errorbar() + 
+  labs(x = "Category", y = "Log fold-difference estimate",
+       color = "Interval includes zero") + 
+  theme_bw() + 
+  theme(legend.position = "bottom") + 
+  ylim(c(-5, 5))
+```
+
+Here we can see that our 95% confidence intervals range from approximately $-4.5$ to $4$, and approximately 75% of the categories in our analysis have 95% confidence intervals that include $0$. 
+
+## Citation
+
+If you use `niceday` please cite the preprint:
+
+Hopkins et al. "Nonparametric Identification and Estimation of Ratios of Multi-Category Means under Preferential Sampling." (2025+)

@@ -13,10 +13,18 @@
 #' @param enforce_pos_reg Should estimates of \eqn{E[W_j|A=a,X]} to forced to be strictly positive? Default is `FALSE`.
 #' @param verbose Do you want to receive updates as this function runs? Default is `TRUE`.
 #'
-#' @return A list of estimated nuisance functions and some diagnostic information.
+#' @return A list of estimated nuisance functions and additional diagnostic information.
 #'
 #' @examples
-#' # add example here!
+#' data(EcoZUR_meta)
+#' data(EcoZUR_count)
+#' nuis <- est_nuis(W = EcoZUR_count[, 1:50], # consider only the first 50 taxa to run quickly
+#'                  A = (EcoZUR_meta[, "Diarrhea"] == "Case") * 1,
+#'                  X = model.matrix(~ sex + age_months, EcoZUR_meta),
+#'                  num_crossval_folds = 2,
+#'                  num_crossfit_folds = 2,
+#'                  sl.lib.pi = c("SL.mean"), # choosing single learner for the example to run quickly,
+#'                  sl.lib.m = c("SL.mean"))  # in practice would use other options as well
 #'
 #' @export
 est_nuis <- function(W,

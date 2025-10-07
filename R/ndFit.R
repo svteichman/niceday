@@ -19,11 +19,22 @@
 #' @param verbose Do you want to receive updates as this function runs? Default is `FALSE`.
 #' @param cross_fit Should cross-fitting be run? Default is `TRUE`.
 #'
-#' @return A list containing elements `noadjust`, `adjust`, `nuis`, `cf_nuis`, and `variance`. `noadjust` gives unadjusted parameter estimates.
-#' `adjust` gives covariate adjusted parameter estimates. `nuis` gives estimates of nuisance parameters. Add a description of the rest here!
+#' @return A list containing elements `coef`, `nuisances`, `crossfit_nuisances`, `variance`, and `call`. `coef` contains estimates,
+#' standard errors, and confidence intervals for all categories. `nuisances` and `crossfit_nuisances` contain estimated nuisance
+#' parameters and nuisance parameters from the crossfitting procedure (included when adjustment covariates are included).
+#' `variance` contains the estimated covariance matrix. `call` contains the call to `ndFit()`.
 #'
 #' @examples
-#' # add example here!
+#' data(EcoZUR_meta)
+#' data(EcoZUR_count)
+#' ndFit(W = EcoZUR_count[, 1:50], # consider only the first 50 taxa to run quickly
+#'       data = EcoZUR_meta,
+#'       A = ~ Diarrhea,
+#'       X = ~ sex + age_months,
+#'       num_crossval_folds = 2, # use more folds in practice
+#'       num_crossfit_folds = 2, # for cross validation and cross fitting
+#'       sl.lib.pi = c("SL.mean"), # choosing single learner for the example to run quickly,
+#'       sl.lib.m = c("SL.mean"))  # in practice would use other options as well
 #'
 #' @export
 ndFit <- function(W,
@@ -51,6 +62,8 @@ ndFit <- function(W,
                   verbose = FALSE,
                   cross_fit = TRUE) {
 
+  call <- match.call(expand.dots = FALSE)
+
   # perform checks to ensure valid data input
   if (!is.data.frame(W)) {
     stop("W must be an nxJ data.frame")
@@ -61,7 +74,7 @@ ndFit <- function(W,
   }
 
   # transform A from formula into a vector
-  A <- model.matrix(A, data)
+  A <- stats::model.matrix(A, data)
   if (ncol(A) > 2) {
     stop("The `A` formula must only include a single covariate")
   }
@@ -84,11 +97,11 @@ ndFit <- function(W,
   }
 
   # transform X formula into design matrix
-  X <- model.matrix(X, data)
+  X <- stats::model.matrix(X, data)
   if (ncol(X) == 1) {
-    adjust_covariates = TRUE
-  } else {
     adjust_covariates = FALSE
+  } else {
+    adjust_covariates = TRUE
   }
 
   if (!is.null(nuis)) {
@@ -191,7 +204,7 @@ ndFit <- function(W,
     upper_g_log_noadj_sim <- NA
   }
 
-  results_simple <- list(ABC = data.frame(taxon = 1:J,
+  results_simple <- list(Psi1 = data.frame(category = 1:J,
                                           est = psi_hat_ABC_simp,
                                           se = se_hat_psi_hat_ABC_simp,
                                           lower_marg = lower_log_noadj_marg,
@@ -199,7 +212,7 @@ ndFit <- function(W,
                                           lower_sim = lower_log_noadj_sim,
                                           upper_sim = upper_log_noadj_sim),
 
-                         ABC_g = data.frame(taxon = 1:J,
+                         Psi1g = data.frame(category = 1:J,
                                             est = psi_hat_ABC_g_simp,
                                             se = se_hat_psi_hat_ABC_g_simp,
                                             lower_marg = lower_g_log_noadj_marg,
@@ -238,7 +251,7 @@ ndFit <- function(W,
                              uniform_CI = uniform_CI,
                              verbose = verbose)
 
-    results_adjust <- list(ABCD = data.frame(taxon = 1:J,
+    results_adjust <- list(Psi2 = data.frame(category = 1:J,
                                              est = psi_ABCD$res$est,
                                              se = psi_ABCD$res$se,
                                              lower_marg = psi_ABCD$res$lower_marg,
@@ -247,7 +260,7 @@ ndFit <- function(W,
                                              upper_sim = psi_ABCD$res$upper_sim,
                                              type = psi_ABCD$res$type),
 
-                           ABCD_g = data.frame(taxon = 1:J,
+                           Psi2g = data.frame(category = 1:J,
                                                est = psi_ABCD$res_g$est,
                                                se = psi_ABCD$res_g$se,
                                                lower_marg = psi_ABCD$res_g$lower_marg,
@@ -273,6 +286,7 @@ ndFit <- function(W,
     results <- list(coef = results_simple,
                     variance = list("Sigmahat" = Sigmahat, "Sigmahat_g" = Sigmahat_g))
   }
+  results$call <- call
 
   return(structure(results, class = "ndFit"))
 }
