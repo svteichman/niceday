@@ -7,7 +7,7 @@
 #' @param alpha Desired asymptotic type I error rate. Default is `0.05`.
 #' @param uniform_CI Generate simultaneous confidence intervals across al categories? Default is `TRUE`.
 #' @param d Parameter for smoothed median centering. Default is `0.1`.
-#' @param gtrunc ?? Default is `0.01`.
+#' @param gtrunc Truncation parameter passed to `est_nuis`, bounding the estimated propensity scores away from `0` and `1` by `gtrunc`. Default is `0.01`.
 #' @param bs_rep Number of replicates for bootstrap sampling of uniform confidence intervals. Default is `1e5`.
 #' @param num_crossval_folds Number of folds for cross-validation. Default is `10`.
 #' @param num_crossfit_folds Number of folds for cross-fitting. Default is `10`.
@@ -263,14 +263,16 @@ ndFit <- function(W,
   }
 
   # now return results
-  results <- list(noadjust = results_simple,
-                  adjust = results_adjust,
-                  nuis = nuis,
-                  cf_nuis = cf_nuis,
-                  variance = list(noadjust = list("Sigmahat" = Sigmahat,
-                                                  "Sigmahat_g" = Sigmahat_g),
-                                  adjust = list("Sigmahat" = psi_ABCD$Sigmahat$Sigmahat_log_AIPW,
-                                                "Sigmahat_g" = psi_ABCD$Sigmahat$Sigmahat_g_log_AIPW)))
+  if (adjust_covariates) {
+    results <- list(coef = results_adjust,
+                    nuisances = nuis,
+                    crossfit_nuisances = cf_nuis,
+                    variance = list("Sigmahat" = psi_ABCD$Sigmahat$Sigmahat_log_AIPW,
+                                    "Sigmahat_g" = psi_ABCD$Sigmahat$Sigmahat_g_log_AIPW))
+  } else {
+    results <- list(coef = results_simple,
+                    variance = list("Sigmahat" = Sigmahat, "Sigmahat_g" = Sigmahat_g))
+  }
 
-  return(results)
+  return(structure(results, class = "ndFit"))
 }

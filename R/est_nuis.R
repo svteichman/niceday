@@ -5,7 +5,7 @@
 #' @param X Matrix of covariates to adjust for.
 #' @param num_crossval_folds Number of folds for cross-validation. Default is `10`.
 #' @param num_crossfit_folds Number of folds for cross-fitting. Default is `10`.
-#' @param gtrunc ?? Default is `min(0.05, 5 / sqrt(NROW(W)) / log(NROW(W)))`.
+#' @param gtrunc Truncation parameter, bounding the estimated propensity scores away from `0` and `1` by `gtrunc`. Default is `min(0.05, 5 / sqrt(NROW(W)) / log(NROW(W)))`.
 #' @param sl.lib.pi Libraries used to estimate the propensity score nuisance function. Default is `c("SL.mean", "SL.glm.binom", "SL.glmnet.binom", "SL.gam.binom", "SL.ranger.binom", "SL.hal9001.binom")`.
 #' @param sl.lib.m Libraries used to estimate conditional mean mu_j nuisance functions. Default is `c("SL.mean", "SL.glm.pois", "SL.glmnet.pois", "SL.ranger.pois")`.
 #' @param sl.lib.q Libraries used to estimate conditional probabilities on nonzero observations. Default is the input to `sl.lib.pi`.
@@ -13,8 +13,7 @@
 #' @param enforce_pos_reg Should estimates of \eqn{E[W_j|A=a,X]} to forced to be strictly positive? Default is `FALSE`.
 #' @param verbose Do you want to receive updates as this function runs? Default is `TRUE`.
 #'
-#' @return A list containing elements `noadjust`, `adjust`, `nuis`, `cf_nuis`, and `variance`. `noadjust` gives unadjusted parameter estimates.
-#' `adjust` gives covariate adjusted parameter estimates. `nuis` gives estimates of nuisance parameters. Add a description of the rest here!
+#' @return A list of estimated nuisance functions and some diagnostic information.
 #'
 #' @examples
 #' # add example here!

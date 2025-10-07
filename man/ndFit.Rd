@@ -7,7 +7,8 @@
 ndFit(
   W,
   A,
-  X,
+  X = ~1,
+  data,
   alpha = 0.05,
   uniform_CI = TRUE,
   d = 0.1,
@@ -19,7 +20,6 @@ ndFit(
   sl.lib.pi = c("SL.mean", "SL.lm", "SL.glm.binom", "SL.xgboost.binom"),
   sl.lib.m = c("SL.mean", "SL.lm", "SL.glm.qpois", "SL.xgboost.pois"),
   sl.lib.q = sl.lib.pi,
-  adjust_covariates = TRUE,
   nuis = NULL,
   verbose = FALSE,
   cross_fit = TRUE
@@ -28,13 +28,15 @@ ndFit(
 \arguments{
 \item{W}{Matrix of multivariate outcome variables.}
 
-\item{A}{Binary covariate of interest.}
+\item{A}{Formula indicating binary covariate of interest.}
 
-\item{X}{Matrix of covariates to adjust for.}
+\item{X}{Formula indicating covariates to adjust for. Default is no adjustment, `~ 1`}
+
+\item{data}{Data frame containing any covariates in formulas for `A` and `X`.}
 
 \item{alpha}{Desired asymptotic type I error rate. Default is `0.05`.}
 
-\item{uniform_CI}{?? Default is `TRUE`.}
+\item{uniform_CI}{Generate simultaneous confidence intervals across al categories? Default is `TRUE`.}
 
 \item{d}{Parameter for smoothed median centering. Default is `0.1`.}
 
@@ -48,15 +50,13 @@ ndFit(
 
 \item{enforce_pos_reg}{Should estimates of \eqn{E[W_j|A=a,X]} to forced to be strictly positive? Default is `FALSE`.}
 
-\item{sl.lib.pi}{Libraries used to estimate ???. Default is `c("SL.mean", "SL.lm", "SL.glm.binom", "SL.xgboost.binom")`.}
+\item{sl.lib.pi}{Libraries used to estimate the propensity score nuisance function. Default is `c("SL.mean", "SL.lm", "SL.glm.binom", "SL.xgboost.binom")`.}
 
-\item{sl.lib.m}{Libraries used to estimate ???. Default is `c("SL.mean", "SL.lm", "SL.glm.qpois", "SL.xgboost.pois")`.}
+\item{sl.lib.m}{Libraries used to estimate conditional mean mu_j nuisance functions. Default is `c("SL.mean", "SL.lm", "SL.glm.qpois", "SL.xgboost.pois")`.}
 
-\item{sl.lib.q}{Libraries used to estimate ???. Default is the input to `sl.lib.pi`.}
+\item{sl.lib.q}{Libraries used to estimate conditional probabilities on nonzero observations. Default is the input to `sl.lib.pi`.}
 
-\item{adjust_covariates}{Should covariates be adjusted for in the estimator? Default is `TRUE`.}
-
-\item{nuis}{??. Default is `NULL`.}
+\item{nuis}{Optional list of estimated nuisance functions (from function `est_nuis()`). Default is `NULL`.}
 
 \item{verbose}{Do you want to receive updates as this function runs? Default is `FALSE`.}
 
