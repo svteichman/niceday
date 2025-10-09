@@ -16,7 +16,19 @@ print.ndFit <- function(x,
   cat("\nCall:\n",
       paste(deparse(x$call), sep = "\n", collapse = "\n"), "\n\n", sep = "")
 
-  cat("\nCoefficient estimates with the largest magnitudes:\n")
+  cat("\nCoefficient estimates with the largest magnitudes (Psi1/Psi2):\n")
+  n_or_nrow <- min(n, nrow(x$coef[[1]]))
+  sorted_ind <- order(abs(x$coef[[1]]$est), decreasing = TRUE)[1:n_or_nrow]
+  coefs_tab <- x$coef[[1]][sorted_ind,, drop = FALSE]
+  cols_NA <- which(colMeans(is.na(x$coef[[1]])) == 1)
+  if (length(cols_NA) > 0) {
+    coefs_tab <- coefs_tab[, -(cols_NA)]
+  }
+  print(data.frame(coefs_tab))
+
+  cat("\n")
+
+  cat("\nCoefficient estimates with the largest magnitudes (Psi1g/Psi2g):\n")
   n_or_nrow <- min(n, nrow(x$coef[[2]]))
   sorted_ind <- order(abs(x$coef[[2]]$est), decreasing = TRUE)[1:n_or_nrow]
   coefs_tab <- x$coef[[2]][sorted_ind,, drop = FALSE]
