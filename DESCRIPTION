@@ -1,6 +1,6 @@
 Package: niceday
 Title: Nonparametric estimates and confidence intervals for fold-difference parameters
-Version: 0.1.0
+Version: 1.0.0
 Authors@R: c(person("Grant", "Hopkins", role = c("aut")),
              person("Amy D", "Willis", email = "adwillis@uw.edu", role = c("aut", "cre"), comment = c(ORCID = "0000-0002-2802-4317")),
              person("Sarah", "Teichman", role = "aut"))
@@ -10,17 +10,20 @@ Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.3.2
 Depends: 
-  gam,
-  MASS,
-  glmnet,
-  hal9001,
-  ranger,
-  xgboost,
-  withr,
-  SuperLearner
+    gam,
+    MASS,
+    glmnet,
+    hal9001,
+    ranger,
+    xgboost,
+    withr,
+    SuperLearner,
+    R (>= 3.5)
 Suggests:
     knitr,
     rmarkdown,
+    dplyr,
+    ggplot2,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr

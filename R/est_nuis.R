@@ -5,19 +5,26 @@
 #' @param X Matrix of covariates to adjust for.
 #' @param num_crossval_folds Number of folds for cross-validation. Default is `10`.
 #' @param num_crossfit_folds Number of folds for cross-fitting. Default is `10`.
-#' @param gtrunc ?? Default is `min(0.05, 5 / sqrt(NROW(W)) / log(NROW(W)))`.
-#' @param sl.lib.pi Libraries used to estimate ???. Default is `c("SL.mean", "SL.glm.binom", "SL.glmnet.binom", "SL.gam.binom", "SL.ranger.binom", "SL.hal9001.binom")`.
-#' @param sl.lib.m Libraries used to estimate ???. Default is `c("SL.mean", "SL.glm.pois", "SL.glmnet.pois", "SL.ranger.pois")`.
-#' @param sl.lib.q Libraries used to estimate ???. Default is the input to `sl.lib.pi`.
+#' @param gtrunc Truncation parameter, bounding the estimated propensity scores away from `0` and `1` by `gtrunc`. Default is `min(0.05, 5 / sqrt(NROW(W)) / log(NROW(W)))`.
+#' @param sl.lib.pi Libraries used to estimate the propensity score nuisance function. Default is `c("SL.mean", "SL.glm.binom", "SL.glmnet.binom", "SL.gam.binom", "SL.ranger.binom", "SL.hal9001.binom")`.
+#' @param sl.lib.m Libraries used to estimate conditional mean mu_j nuisance functions. Default is `c("SL.mean", "SL.glm.pois", "SL.glmnet.pois", "SL.ranger.pois")`.
+#' @param sl.lib.q Libraries used to estimate conditional probabilities on nonzero observations. Default is the input to `sl.lib.pi`.
 #' @param allow_warnings Allow warnings? Default is `TRUE`.
 #' @param enforce_pos_reg Should estimates of \eqn{E[W_j|A=a,X]} to forced to be strictly positive? Default is `FALSE`.
 #' @param verbose Do you want to receive updates as this function runs? Default is `TRUE`.
 #'
-#' @return A list containing elements `noadjust`, `adjust`, `nuis`, `cf_nuis`, and `variance`. `noadjust` gives unadjusted parameter estimates.
-#' `adjust` gives covariate adjusted parameter estimates. `nuis` gives estimates of nuisance parameters. Add a description of the rest here!
+#' @return A list of estimated nuisance functions and additional diagnostic information.
 #'
 #' @examples
-#' # add example here!
+#' data(EcoZUR_meta)
+#' data(EcoZUR_count)
+#' nuis <- est_nuis(W = EcoZUR_count[, 1:50], # consider only the first 50 taxa to run quickly
+#'                  A = (EcoZUR_meta[, "Diarrhea"] == "Case") * 1,
+#'                  X = model.matrix(~ sex + age_months, EcoZUR_meta),
+#'                  num_crossval_folds = 2,
+#'                  num_crossfit_folds = 2,
+#'                  sl.lib.pi = c("SL.mean"), # choosing single learner for the example to run quickly,
+#'                  sl.lib.m = c("SL.mean"))  # in practice would use other options as well
 #'
 #' @export
 est_nuis <- function(W,

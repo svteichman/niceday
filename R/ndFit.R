@@ -1,34 +1,46 @@
 #' Fit niceday model
 #'
 #' @param W Matrix of multivariate outcome variables.
-#' @param A Binary covariate of interest.
-#' @param X Matrix of covariates to adjust for.
+#' @param A Formula indicating binary covariate of interest.
+#' @param X Formula indicating covariates to adjust for. Default is no adjustment, `~ 1`
+#' @param data Data frame containing any covariates in formulas for `A` and `X`.
 #' @param alpha Desired asymptotic type I error rate. Default is `0.05`.
-#' @param uniform_CI ?? Default is `TRUE`.
+#' @param uniform_CI Generate simultaneous confidence intervals across al categories? Default is `TRUE`.
 #' @param d Parameter for smoothed median centering. Default is `0.1`.
-#' @param gtrunc ?? Default is `0.01`.
+#' @param gtrunc Truncation parameter passed to `est_nuis`, bounding the estimated propensity scores away from `0` and `1` by `gtrunc`. Default is `0.01`.
 #' @param bs_rep Number of replicates for bootstrap sampling of uniform confidence intervals. Default is `1e5`.
 #' @param num_crossval_folds Number of folds for cross-validation. Default is `10`.
 #' @param num_crossfit_folds Number of folds for cross-fitting. Default is `10`.
 #' @param enforce_pos_reg Should estimates of \eqn{E[W_j|A=a,X]} to forced to be strictly positive? Default is `FALSE`.
-#' @param sl.lib.pi Libraries used to estimate ???. Default is `c("SL.mean", "SL.lm", "SL.glm.binom", "SL.xgboost.binom")`.
-#' @param sl.lib.m Libraries used to estimate ???. Default is `c("SL.mean", "SL.lm", "SL.glm.qpois", "SL.xgboost.pois")`.
-#' @param sl.lib.q Libraries used to estimate ???. Default is the input to `sl.lib.pi`.
-#' @param adjust_covariates Should covariates be adjusted for in the estimator? Default is `TRUE`.
-#' @param nuis ??. Default is `NULL`.
+#' @param sl.lib.pi Libraries used to estimate the propensity score nuisance function. Default is `c("SL.mean", "SL.lm", "SL.glm.binom", "SL.xgboost.binom")`.
+#' @param sl.lib.m Libraries used to estimate conditional mean mu_j nuisance functions. Default is `c("SL.mean", "SL.lm", "SL.glm.qpois", "SL.xgboost.pois")`.
+#' @param sl.lib.q Libraries used to estimate conditional probabilities on nonzero observations. Default is the input to `sl.lib.pi`.
+#' @param nuis Optional list of estimated nuisance functions (from function `est_nuis()`). Default is `NULL`.
 #' @param verbose Do you want to receive updates as this function runs? Default is `FALSE`.
 #' @param cross_fit Should cross-fitting be run? Default is `TRUE`.
 #'
-#' @return A list containing elements `noadjust`, `adjust`, `nuis`, `cf_nuis`, and `variance`. `noadjust` gives unadjusted parameter estimates.
-#' `adjust` gives covariate adjusted parameter estimates. `nuis` gives estimates of nuisance parameters. Add a description of the rest here!
+#' @return A list containing elements `coef`, `nuisances`, `crossfit_nuisances`, `variance`, and `call`. `coef` contains estimates,
+#' standard errors, and confidence intervals for all categories. `nuisances` and `crossfit_nuisances` contain estimated nuisance
+#' parameters and nuisance parameters from the crossfitting procedure (included when adjustment covariates are included).
+#' `variance` contains the estimated covariance matrix. `call` contains the call to `ndFit()`.
 #'
 #' @examples
-#' # add example here!
+#' data(EcoZUR_meta)
+#' data(EcoZUR_count)
+#' ndFit(W = EcoZUR_count[, 1:50], # consider only the first 50 taxa to run quickly
+#'       data = EcoZUR_meta,
+#'       A = ~ Diarrhea,
+#'       X = ~ sex + age_months,
+#'       num_crossval_folds = 2, # use more folds in practice
+#'       num_crossfit_folds = 2, # for cross validation and cross fitting
+#'       sl.lib.pi = c("SL.mean"), # choosing single learner for the example to run quickly,
+#'       sl.lib.m = c("SL.mean"))  # in practice would use other options as well
 #'
 #' @export
 ndFit <- function(W,
                   A,
-                  X,
+                  X = ~ 1,
+                  data,
                   alpha = 0.05,
                   uniform_CI = TRUE,
                   d = 0.1,
@@ -46,22 +58,33 @@ ndFit <- function(W,
                                "SL.glm.qpois",
                                "SL.xgboost.pois"),
                   sl.lib.q = sl.lib.pi,
-                  adjust_covariates = TRUE,
                   nuis = NULL,
                   verbose = FALSE,
                   cross_fit = TRUE) {
+
+  call <- match.call(expand.dots = FALSE)
 
   # perform checks to ensure valid data input
   if (!is.data.frame(W)) {
     stop("W must be an nxJ data.frame")
   }
 
-  if (!is.vector(A)) {
-    stop("A must be a length n vector")
+  if (!inherits(A, "formula")) {
+    stop("A must be a formula")
   }
 
-  if (length(A) != nrow(W)) {
-    stop("The length of A does not match the number of rows of W")
+  # transform A from formula into a vector
+  A <- stats::model.matrix(A, data)
+  if (ncol(A) > 2) {
+    stop("The `A` formula must only include a single covariate")
+  }
+  A <- A[, 2]
+  if (any(!(A %in% c(0, 1)))) {
+    stop("The covariate A must be binary")
+  }
+
+  if (nrow(data) != nrow(W)) {
+    stop("The number of rows in `data` does not match the number of rows of `W`")
   }
 
   if (any(colMeans(W[A == 1, ]) == 0) | any(colMeans(W[A == 0, ]) == 0)) {
@@ -73,11 +96,12 @@ ndFit <- function(W,
     stop("One of the subgroups of interest (0 or 1) is entirely absent.")
   }
 
-  if (adjust_covariates) {
-    if (!(is.data.frame(X) | is.matrix(X))) {
-      stop("User requested covariate adjustment. The input X must be ",
-           "provided as a matrix or a data.frame object.")
-    }
+  # transform X formula into design matrix
+  X <- stats::model.matrix(X, data)
+  if (ncol(X) == 1) {
+    adjust_covariates = FALSE
+  } else {
+    adjust_covariates = TRUE
   }
 
   if (!is.null(nuis)) {
@@ -180,7 +204,7 @@ ndFit <- function(W,
     upper_g_log_noadj_sim <- NA
   }
 
-  results_simple <- list(ABC = data.frame(taxon = 1:J,
+  results_simple <- list(Psi1 = data.frame(category = 1:J,
                                           est = psi_hat_ABC_simp,
                                           se = se_hat_psi_hat_ABC_simp,
                                           lower_marg = lower_log_noadj_marg,
@@ -188,7 +212,7 @@ ndFit <- function(W,
                                           lower_sim = lower_log_noadj_sim,
                                           upper_sim = upper_log_noadj_sim),
 
-                         ABC_g = data.frame(taxon = 1:J,
+                         Psi1g = data.frame(category = 1:J,
                                             est = psi_hat_ABC_g_simp,
                                             se = se_hat_psi_hat_ABC_g_simp,
                                             lower_marg = lower_g_log_noadj_marg,
@@ -227,7 +251,7 @@ ndFit <- function(W,
                              uniform_CI = uniform_CI,
                              verbose = verbose)
 
-    results_adjust <- list(ABCD = data.frame(taxon = 1:J,
+    results_adjust <- list(Psi2 = data.frame(category = 1:J,
                                              est = psi_ABCD$res$est,
                                              se = psi_ABCD$res$se,
                                              lower_marg = psi_ABCD$res$lower_marg,
@@ -236,7 +260,7 @@ ndFit <- function(W,
                                              upper_sim = psi_ABCD$res$upper_sim,
                                              type = psi_ABCD$res$type),
 
-                           ABCD_g = data.frame(taxon = 1:J,
+                           Psi2g = data.frame(category = 1:J,
                                                est = psi_ABCD$res_g$est,
                                                se = psi_ABCD$res_g$se,
                                                lower_marg = psi_ABCD$res_g$lower_marg,
@@ -252,14 +276,17 @@ ndFit <- function(W,
   }
 
   # now return results
-  results <- list(noadjust = results_simple,
-                  adjust = results_adjust,
-                  nuis = nuis,
-                  cf_nuis = cf_nuis,
-                  variance = list(noadjust = list("Sigmahat" = Sigmahat,
-                                                  "Sigmahat_g" = Sigmahat_g),
-                                  adjust = list("Sigmahat" = psi_ABCD$Sigmahat$Sigmahat_log_AIPW,
-                                                "Sigmahat_g" = psi_ABCD$Sigmahat$Sigmahat_g_log_AIPW)))
+  if (adjust_covariates) {
+    results <- list(coef = results_adjust,
+                    nuisances = nuis,
+                    crossfit_nuisances = cf_nuis,
+                    variance = list("Sigmahat" = psi_ABCD$Sigmahat$Sigmahat_log_AIPW,
+                                    "Sigmahat_g" = psi_ABCD$Sigmahat$Sigmahat_g_log_AIPW))
+  } else {
+    results <- list(coef = results_simple,
+                    variance = list("Sigmahat" = Sigmahat, "Sigmahat_g" = Sigmahat_g))
+  }
+  results$call <- call
 
-  return(results)
+  return(structure(results, class = "ndFit"))
 }

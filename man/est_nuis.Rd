@@ -31,13 +31,13 @@ est_nuis(
 
 \item{num_crossval_folds}{Number of folds for cross-validation. Default is `10`.}
 
-\item{gtrunc}{?? Default is `min(0.05, 5 / sqrt(NROW(W)) / log(NROW(W)))`.}
+\item{gtrunc}{Truncation parameter, bounding the estimated propensity scores away from `0` and `1` by `gtrunc`. Default is `min(0.05, 5 / sqrt(NROW(W)) / log(NROW(W)))`.}
 
-\item{sl.lib.pi}{Libraries used to estimate ???. Default is `c("SL.mean", "SL.glm.binom", "SL.glmnet.binom", "SL.gam.binom", "SL.ranger.binom", "SL.hal9001.binom")`.}
+\item{sl.lib.pi}{Libraries used to estimate the propensity score nuisance function. Default is `c("SL.mean", "SL.glm.binom", "SL.glmnet.binom", "SL.gam.binom", "SL.ranger.binom", "SL.hal9001.binom")`.}
 
-\item{sl.lib.m}{Libraries used to estimate ???. Default is `c("SL.mean", "SL.glm.pois", "SL.glmnet.pois", "SL.ranger.pois")`.}
+\item{sl.lib.m}{Libraries used to estimate conditional mean mu_j nuisance functions. Default is `c("SL.mean", "SL.glm.pois", "SL.glmnet.pois", "SL.ranger.pois")`.}
 
-\item{sl.lib.q}{Libraries used to estimate ???. Default is the input to `sl.lib.pi`.}
+\item{sl.lib.q}{Libraries used to estimate conditional probabilities on nonzero observations. Default is the input to `sl.lib.pi`.}
 
 \item{allow_warnings}{Allow warnings? Default is `TRUE`.}
 
@@ -46,13 +46,20 @@ est_nuis(
 \item{verbose}{Do you want to receive updates as this function runs? Default is `TRUE`.}
 }
 \value{
-A list containing elements `noadjust`, `adjust`, `nuis`, `cf_nuis`, and `variance`. `noadjust` gives unadjusted parameter estimates.
-`adjust` gives covariate adjusted parameter estimates. `nuis` gives estimates of nuisance parameters. Add a description of the rest here!
+A list of estimated nuisance functions and additional diagnostic information.
 }
 \description{
 Estimate nuisance parameters for niceday model
 }
 \examples{
-# add example here!
+data(EcoZUR_meta)
+data(EcoZUR_count)
+nuis <- est_nuis(W = EcoZUR_count[, 1:50], # consider only the first 50 taxa to run quickly
+                 A = (EcoZUR_meta[, "Diarrhea"] == "Case") * 1,
+                 X = model.matrix(~ sex + age_months, EcoZUR_meta),
+                 num_crossval_folds = 2,
+                 num_crossfit_folds = 2,
+                 sl.lib.pi = c("SL.mean"), # choosing single learner for the example to run quickly,
+                 sl.lib.m = c("SL.mean"))  # in practice would use other options as well
 
 }
